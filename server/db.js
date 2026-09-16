@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { products } from '../src/data/products.js';
 import { categories } from '../src/data/categories.js';
 import { storeSettings } from '../src/admin/data/adminMockData.js';
 
-export function openDatabase(filename = process.env.DATABASE_PATH || 'data/store.sqlite') {
+export function openDatabase(filename = process.env.DATABASE_PATH || (process.env.VERCEL ? resolve(tmpdir(), 'store.sqlite') : 'data/store.sqlite')) {
   if (filename !== ':memory:') mkdirSync(dirname(resolve(filename)), { recursive: true });
   const db = new DatabaseSync(filename);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
@@ -24,13 +25,26 @@ export function openDatabase(filename = process.env.DATABASE_PATH || 'data/store
     try {
       const insert = db.prepare('INSERT INTO catalog(kind,id,data) VALUES(?,?,?)');
       for (const c of categories) insert.run('categories', String(c.id), JSON.stringify(c));
-      for (const p of products) insert.run('products', String(p.id), JSON.stringify({ ...p, stock: 0 }));
+      const initialStock = process.env.VERCEL ? 25 : 0;
+      for (const p of products) insert.run('products', String(p.id), JSON.stringify({ ...p, stock: initialStock }));
       db.prepare('INSERT INTO settings VALUES(1,?)').run(JSON.stringify({ ...storeSettings, deliveryFee: 10, minimumOrder: 0, servicePincodes: ['712701'], acceptingOrders: true }));
       db.prepare('INSERT INTO metadata VALUES(?,?)').run('seeded', new Date().toISOString());
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
   return db;
+}
+
+export async function ensureAdminOnVercel(db) {
+  if (process.env.VERCEL) {
+    const adminExists = db.prepare("SELECT count(*) AS n FROM users WHERE role='admin'").get().n > 0;
+    if (!adminExists) {
+      const { createUser } = await import('./auth.js');
+      const identifier = (process.env.ADMIN_EMAIL || 'admin@alkabeerhmart.com').trim().toLowerCase();
+      const password = process.env.ADMIN_PASSWORD || 'Admin@12345678';
+      await createUser(db, { identifier, password, name: process.env.ADMIN_NAME || 'Store Administrator', role: 'admin' });
+    }
+  }
 }
 
 export const list = (db, kind) => db.prepare('SELECT data FROM catalog WHERE kind=? ORDER BY rowid').all(kind).map(r => JSON.parse(r.data));

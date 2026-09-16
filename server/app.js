@@ -65,15 +65,24 @@ function quote(db, body) {
   return { items, subtotal, discount, deliveryFee: config.deliveryFee, total: money(subtotal - discount + config.deliveryFee), couponCode: promotion?.code || '', promotionId: promotion?.id };
 }
 
-export function createApp(db, { origin = process.env.APP_ORIGIN || 'http://127.0.0.1:3000', production = process.env.NODE_ENV === 'production', distPath = resolve('dist') } = {}) {
-  if (production && !origin.startsWith('https://')) throw new Error('Production APP_ORIGIN must use HTTPS');
+export function createHandler(db, { origin = process.env.APP_ORIGIN || '', production = process.env.NODE_ENV === 'production', distPath = resolve('dist') } = {}) {
+  if (production && origin && !origin.startsWith('https://')) throw new Error('Production APP_ORIGIN must use HTTPS');
   const limits = new Map();
-  return createServer(async (req, res) => {
+  return async (req, res) => {
     const send = (data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     if (production) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
-      const url = new URL(req.url, origin), path = url.pathname, method = req.method;
+      const host = req.headers['x-forwarded-host'] || req.headers.host || '127.0.0.1:3000';
+      const proto = req.headers['x-forwarded-proto'] || (production ? 'https' : 'http');
+      const baseOrigin = origin || `${proto}://${host}`;
+      const requestUri = req.headers['x-forwarded-uri'] || (req.url && req.url !== '/api' ? req.url : (req.headers['x-matched-path'] || req.url));
+      const url = new URL(requestUri, baseOrigin);
+      let path = url.pathname;
+      if (path === '/api' && url.searchParams.has('match')) {
+        path = '/api/' + url.searchParams.get('match').replace(/^\/+/, '');
+      }
+      const method = req.method;
       if (!path.startsWith('/api/')) {
         if (!['GET', 'HEAD'].includes(method)) fail(405, 'Method not allowed');
         let file = resolve(distPath, '.' + decodeURIComponent(path));
@@ -85,15 +94,27 @@ export function createApp(db, { origin = process.env.APP_ORIGIN || 'http://127.0
       }
       res.setHeader('Cache-Control', 'no-store');
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-        if (req.headers.origin && req.headers.origin !== origin) fail(403, 'Request origin is not allowed');
+        if (req.headers.origin) {
+          const reqOriginHost = new URL(req.headers.origin).host;
+          const isAllowed = origin
+            ? (req.headers.origin === origin || reqOriginHost === new URL(origin).host)
+            : (reqOriginHost === host);
+          if (!isAllowed) fail(403, 'Request origin is not allowed');
+        }
         if (req.headers['sec-fetch-site'] === 'cross-site') fail(403, 'Cross-site requests are not allowed');
         if (!req.headers['content-type']?.startsWith('application/json')) fail(415, 'Send application/json');
       }
       let body = {};
       if (['POST', 'PUT', 'PATCH'].includes(method)) {
-        let raw = '', size = 0;
-        for await (const chunk of req) { size += chunk.length; if (size > 262144) fail(413, 'Request too large'); raw += chunk; }
-        try { body = JSON.parse(raw || '{}'); } catch { fail(400, 'Invalid JSON'); }
+        if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+          body = req.body;
+        } else if (typeof req.body === 'string') {
+          try { body = JSON.parse(req.body || '{}'); } catch { fail(400, 'Invalid JSON'); }
+        } else {
+          let raw = '', size = 0;
+          for await (const chunk of req) { size += chunk.length; if (size > 262144) fail(413, 'Request too large'); raw += chunk; }
+          try { body = JSON.parse(raw || '{}'); } catch { fail(400, 'Invalid JSON'); }
+        }
         if (!body || Array.isArray(body) || typeof body !== 'object') fail(400, 'Expected a JSON object');
       }
       const user = sessionUser(db, req);
@@ -228,7 +249,11 @@ export function createApp(db, { origin = process.env.APP_ORIGIN || 'http://127.0
       }
       fail(404, 'API route not found');
     } catch (error) { if (!error.status) console.error(error); if (!res.headersSent) send({ error: error.status ? error.message : 'Unexpected server error' }, error.status || 500); else res.end(); }
-  });
+  };
+}
+
+export function createApp(db, options = {}) {
+  return createServer(createHandler(db, options));
 }
 function changeStatus(db, order, status) {
   if (order.status === status) return order;
