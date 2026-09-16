@@ -1,3 +1,4 @@
+import { useCatalog } from '../context/CatalogContext';
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Tag, Milk, Cookie, Search } from 'lucide-react';
@@ -7,10 +8,10 @@ import { PromoCards } from '../components/PromoCards';
 import { CategoryGrid } from '../components/CategoryGrid';
 import { ProductSection } from '../components/ProductSection';
 import { ProductCard } from '../components/ProductCard';
-import { products } from '../data/products';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Home({ searchQuery, onSearchChange, onOpenVip }) {
+  const { products } = useCatalog();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -24,27 +25,27 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
         p.category.toLowerCase().includes(q) ||
         (p.tag && p.tag.toLowerCase().includes(q))
     );
-  }, [searchQuery]);
+  }, [searchQuery, products]);
 
   // Section specific curated products
   const quickProducts = useMemo(
     () => products.filter((p) => p.category === 'quick-delivery' || p.category === 'dairy-eggs').slice(0, 6),
-    []
+    [products]
   );
 
   const under99Products = useMemo(
     () => products.filter((p) => p.price < 100).slice(0, 6),
-    []
+    [products]
   );
 
   const dairyProducts = useMemo(
     () => products.filter((p) => p.category === 'dairy-eggs').slice(0, 6),
-    []
+    [products]
   );
 
   const snacksProducts = useMemo(
     () => products.filter((p) => p.category === 'snacks').slice(0, 6),
-    []
+    [products]
   );
 
   const handleScrollToSection = (sectionId) => {

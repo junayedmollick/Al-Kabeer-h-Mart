@@ -1,3 +1,4 @@
+import { useCatalog } from '../../context/CatalogContext';
 import React from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -25,13 +26,14 @@ export function AdminSidebar({
   onCloseMobile,
 }) {
   const { t } = useLanguage();
+  const { products, categories } = useCatalog();
   const { user, logout } = useAuth();
   const { orders } = useOrders();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try { await logout(); } catch(e) { alert(e.message); return; }
     navigate('/');
   };
 
@@ -61,13 +63,13 @@ export function AdminSidebar({
           to: '/admin/products',
           label: t('admin.nav.products'),
           icon: Package,
-          badge: '52',
+          badge: String(products.length),
         },
         {
           to: '/admin/categories',
           label: t('admin.nav.categories'),
           icon: Layers,
-          badge: '16',
+          badge: String(categories.length),
         },
         {
           to: '/admin/orders',

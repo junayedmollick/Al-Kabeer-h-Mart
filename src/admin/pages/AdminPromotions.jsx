@@ -1,3 +1,5 @@
+import { api } from '../../lib/api';
+import { useAdminData } from '../../context/AdminDataContext';
 import React, { useState } from 'react';
 import {
   Tag,
@@ -11,7 +13,6 @@ import {
   Trash2
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { initialPromotions } from '../data/adminMockData';
 import { StatusBadge } from '../components/StatusBadge';
 import { AdminModal } from '../components/AdminModal';
 import { AdminTable } from '../components/AdminTable';
@@ -21,28 +22,7 @@ const STORAGE_KEY = 'alkabeer_admin_promotions';
 export function AdminPromotions() {
   const { t } = useLanguage();
 
-  const [promotions, setPromotions] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return initialPromotions;
-  });
-
-  const savePromos = (updated) => {
-    setPromotions(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-  };
-
+  const { promotions, refreshAdmin } = useAdminData();
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'expired'
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,7 +35,7 @@ export function AdminPromotions() {
     discountType: 'Flat Discount',
     discountValue: '₹50 OFF',
     minOrder: 299,
-    validUntil: '30 Jun 2025',
+    validUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
   });
 
   const showToast = (msg) => {
@@ -63,44 +43,18 @@ export function AdminPromotions() {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  const toggleStatus = (id) => {
-    const updated = promotions.map((p) =>
-      p.id === id
-        ? { ...p, status: p.status === 'Active' ? 'Expired' : 'Active' }
-        : p
-    );
-    savePromos(updated);
-    showToast('Promotion status toggled!');
+  const [saving, setSaving] = useState(false);
+  const toggleStatus = async id => {
+    const p = promotions.find(p => p.id === id);
+    try { await api('/admin/promotions/' + encodeURIComponent(id), { method: 'PUT', body: { ...p, status: p.status === 'Active' ? 'Expired' : 'Active' } }); await refreshAdmin(); showToast('Promotion updated.'); } catch(e) { showToast(e.message); }
   };
-
-  const handleDeletePromo = (id) => {
-    const updated = promotions.filter((p) => p.id !== id);
-    savePromos(updated);
-    showToast('Promotion deleted');
+  const handleDeletePromo = async id => {
+    if(!window.confirm('Delete this promotion?')) return;
+    try { await api('/admin/promotions/' + encodeURIComponent(id), { method:'DELETE' }); await refreshAdmin(); showToast('Promotion deleted.'); } catch(e) { showToast(e.message); }
   };
-
-  const handleCreatePromo = (e) => {
-    e.preventDefault();
-    if (!formData.code.trim() || !formData.discountValue.trim()) return;
-
-    const newPromo = {
-      id: `PROMO-${Date.now()}`,
-      code: formData.code.toUpperCase().trim(),
-      title: formData.title || formData.code,
-      description: formData.description || 'Special store promotion',
-      discountType: formData.discountType,
-      discountValue: formData.discountValue,
-      minOrder: Number(formData.minOrder) || 0,
-      status: 'Active',
-      usageLimit: 1000,
-      usageCount: 0,
-      validUntil: formData.validUntil,
-      badge: 'New',
-    };
-
-    savePromos([newPromo, ...promotions]);
-    setIsModalOpen(false);
-    showToast('New coupon created successfully!');
+  const handleCreatePromo = async e => {
+    e.preventDefault(); if(saving) return; setSaving(true);
+    try { await api('/admin/promotions', { method:'POST', body: { ...formData, title:formData.title || formData.code, status:'Active', discountType:formData.discountValue.includes('%') ? 'Percentage' : 'Flat Discount' } }); await refreshAdmin(); setIsModalOpen(false); showToast('Coupon created.'); } catch(e) { showToast(e.message); } finally { setSaving(false); }
   };
 
   const filteredPromotions = promotions.filter((p) => {
@@ -148,7 +102,7 @@ export function AdminPromotions() {
               discountType: 'Flat Discount',
               discountValue: '₹50 OFF',
               minOrder: 299,
-              validUntil: '30 Jun 2025',
+              validUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
             });
             setIsModalOpen(true);
           }}
@@ -494,7 +448,7 @@ export function AdminPromotions() {
               {t('admin.common.cancel')}
             </button>
             <button
-              type="submit"
+              type="submit" disabled={saving}
               className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs cursor-pointer hover:scale-105 active:scale-95 transition-all"
             >
               {t('admin.common.save')}

@@ -1,23 +1,25 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+import { useCatalog } from './CatalogContext';
+
 const CartContext = createContext();
 
 export function CartProvider({ children }) {
+  const { products, settings } = useCatalog();
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem('alkabeer_cart');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.filter(i => i && i.id !== undefined && Number.isInteger(i.quantity) && i.quantity > 0 && Number.isFinite(i.price)) : [];
     } catch {
       return [];
     }
   });
 
-  const [isVip, setIsVip] = useState(false);
-  const [vipMember, setVipMember] = useState({
-    name: 'Tariq Ahmed',
-    cardNumber: 'AKM-999-8472',
-    validTill: '12/2027',
-  });
+  const isVip = false;
+  const vipMember = null;
+  const setIsVip = () => {};
+  const setVipMember = () => {};
 
   useEffect(() => {
     try {
@@ -27,12 +29,14 @@ export function CartProvider({ children }) {
     }
   }, [cart]);
 
-  const addToCart = (product) => {
+  const addToCart = (item) => {
+    const product = products.find(p => String(p.id) === String(item.id));
+    if (!product || product.stock <= 0) return;
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id ? { ...item, quantity: Math.min(product.stock, item.quantity + 1) } : item
         );
       }
       return [...prev, { ...product, quantity: 1 }];
@@ -64,9 +68,10 @@ export function CartProvider({ children }) {
     return item ? item.quantity : 0;
   };
 
+  useEffect(() => { setCart(prev => prev.map(item => { const p = products.find(p => String(p.id) === String(item.id)); return p ? { ...item, ...p } : { ...item, stock: 0 }; })); }, [products]);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = cart.length === 0 ? 0 : isVip ? 0 : 10;
+  const deliveryFee = cart.length === 0 ? 0 : settings.deliveryFee;
   const cartTotal = cartSubtotal + deliveryFee;
 
   return (

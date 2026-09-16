@@ -7,9 +7,9 @@ export function ProfileTab({ profile, setProfile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...profile });
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setProfile({ ...formData });
+    try { await setProfile({ ...formData }); } catch(e) { alert(e.message); return; }
     setIsEditing(false);
   };
 

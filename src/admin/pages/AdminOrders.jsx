@@ -41,8 +41,8 @@ export function AdminOrders() {
     'Cancelled',
   ];
 
-  const handleStatusChange = (orderId, newStatus) => {
-    updateOrderStatus(orderId, newStatus);
+  const handleStatusChange = async (orderId, newStatus) => {
+    try { await updateOrderStatus(orderId, newStatus); } catch(e) { showToast(e.message); return; }
     showToast(`Order #${orderId} status changed to ${newStatus}`);
     if (viewingOrder && viewingOrder.id === orderId) {
       setViewingOrder((prev) => ({ ...prev, status: newStatus }));
@@ -76,7 +76,7 @@ export function AdminOrders() {
       const matchesSearch =
         String(order.id).toLowerCase().includes(q) ||
         (order.deliveryAddress && order.deliveryAddress.toLowerCase().includes(q)) ||
-        (order.rider && order.rider.toLowerCase().includes(q));
+        (order.rider && order.rider.toLowerCase().includes(q)) || order.customerName?.toLowerCase().includes(q) || order.customerPhone?.includes(q);
 
       let matchesFilter = true;
       if (selectedFilter === 'active') {
@@ -193,7 +193,7 @@ export function AdminOrders() {
                 {/* Customer Address & Rider */}
                 <div>
                   <p className="font-bold text-xs text-text-primary">
-                    {order.deliveryAddress ? order.deliveryAddress.split(',')[0] : 'Bhagabatipur Customer'}
+                    {order.customerName || 'Customer'}
                   </p>
                   {order.rider && (
                     <p className="text-[11px] text-text-muted flex items-center gap-1 mt-0.5">
@@ -272,7 +272,7 @@ export function AdminOrders() {
                 {/* Customer & Address */}
                 <td className="px-4 py-3">
                   <p className="font-bold text-xs text-text-primary truncate max-w-xs">
-                    {order.deliveryAddress ? order.deliveryAddress.split(',')[0] : 'Bhagabatipur Customer'}
+                    {order.customerName || 'Customer'}
                   </p>
                   {order.rider && (
                     <p className="text-[10px] text-text-muted flex items-center gap-1 mt-0.5">
@@ -298,7 +298,7 @@ export function AdminOrders() {
                     ₹{order.total}
                   </span>
                   <span className="text-[10px] text-emerald-600 block">
-                    {order.deliveryFee === 0 ? 'Free Delivery' : `+₹${order.deliveryFee}`}
+                    {order.deliveryFee === 0 ? 'Free Delivery' : `Includes ₹${order.deliveryFee} delivery`}
                   </span>
                 </td>
 
@@ -471,7 +471,7 @@ export function AdminOrders() {
               <div className="flex items-center justify-between text-text-secondary">
                 <span>Items Subtotal:</span>
                 <span className="font-bold text-text-primary">
-                  ₹{viewingOrder.total - (viewingOrder.deliveryFee || 0)}
+                  ₹{viewingOrder.subtotal}
                 </span>
               </div>
               <div className="flex items-center justify-between text-text-secondary">

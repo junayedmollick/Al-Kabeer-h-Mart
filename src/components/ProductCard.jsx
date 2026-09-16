@@ -12,6 +12,7 @@ export function ProductCard({ product }) {
   const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
 
+  const outOfStock = product.stock <= 0;
   const quantity = getItemQuantity(product.id);
 
   const discountPercent =
@@ -21,6 +22,7 @@ export function ProductCard({ product }) {
 
   const handleDirectOrder = (e) => {
     e.stopPropagation();
+    if (outOfStock) return;
     if (!isAuthenticated) {
       setPendingAction({
         type: 'direct_order',
@@ -125,12 +127,12 @@ export function ProductCard({ product }) {
             {quantity === 0 ? (
               <button
                 type="button"
-                onClick={() => addToCart(product)}
+                disabled={outOfStock || quantity >= product.stock} onClick={() => addToCart(product)}
                 className="h-7 sm:h-8 px-3 sm:px-3.5 bg-primary-light hover:bg-primary text-primary hover:text-white border border-primary/50 hover:border-primary font-black text-[11px] sm:text-xs rounded-xl shadow-2xs transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer select-none active:scale-95"
                 aria-label={`Add ${product.name} to cart`}
-                title={t('product.add')}
+                title={outOfStock ? 'Out of stock' : t('product.add')}
               >
-                <span>{t('product.add')}</span>
+                <span>{outOfStock ? 'Out of stock' : t('product.add')}</span>
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               </button>
             ) : (
@@ -148,7 +150,7 @@ export function ProductCard({ product }) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => addToCart(product)}
+                  disabled={outOfStock || quantity >= product.stock} onClick={() => addToCart(product)}
                   className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center hover:bg-primary-dark rounded-lg transition-colors cursor-pointer"
                   aria-label="Increase quantity"
                 >
@@ -162,13 +164,13 @@ export function ProductCard({ product }) {
         {/* Row 2: Sleek 1-Click Instant Order Now Bar */}
         <button
           type="button"
-          onClick={handleDirectOrder}
+          disabled={outOfStock} onClick={handleDirectOrder}
           className="w-full h-8 mt-2 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary text-white text-[10px] sm:text-[11px] font-black rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer select-none tracking-wide uppercase"
           aria-label={`Order ${product.name} directly`}
           title={t('product.orderNow')}
         >
           <ShoppingBag className="w-3 h-3 shrink-0" />
-          <span>{t('product.orderNow')}</span>
+          <span>{outOfStock ? 'Out of stock' : t('product.orderNow')}</span>
         </button>
       </div>
 

@@ -24,15 +24,15 @@ export function Login() {
   const location = useLocation();
 
   const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
-  const [identifier, setIdentifier] = useState('tariq.ahmed@example.com');
-  const [password, setPassword] = useState('pass1234');
-  const [name, setName] = useState('Tariq Ahmed');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -40,8 +40,8 @@ export function Login() {
       setError(t('login.identifierLabel') + ' is required');
       return;
     }
-    if (!password.trim() || password.length < 4) {
-      setError('Password must be at least 4 characters');
+    if (!password.trim() || password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
     if (mode === 'signup' && !name.trim()) {
@@ -49,10 +49,11 @@ export function Login() {
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      login({ identifier, password, name });
+    try {
+      const signedIn = await login({ identifier, password, name, mode, rememberMe });
       setIsSubmitting(false);
 
       // Check if there was a pending order action
@@ -80,9 +81,9 @@ export function Login() {
       }
 
       // Check if redirected from a specific route
-      const fromPath = location.state?.from?.pathname || '/account';
+      const fromPath = location.state?.from?.pathname || (signedIn.role === 'admin' ? '/admin' : '/account');
       navigate(fromPath, { replace: true });
-    }, 400);
+    } catch(e) { setError(e.message); } finally { setIsSubmitting(false); }
   };
 
   return (
@@ -246,6 +247,7 @@ export function Login() {
                   </label>
                   <input
                     type="text"
+                    aria-label="Full name" autoComplete="name" required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t('login.namePlaceholder')}
@@ -262,6 +264,7 @@ export function Login() {
                 <div className="relative flex items-center">
                   <input
                     type="text"
+                    aria-label="Email or phone" autoComplete="username" required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={t('login.identifierPlaceholder')}
@@ -286,7 +289,7 @@ export function Login() {
                   {mode === 'signin' && (
                     <button
                       type="button"
-                      onClick={() => alert('For this demo, any password with 4+ characters will log you in.')}
+                      onClick={() => setError('Contact the store administrator if you need help accessing your account.')}
                       className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
                     >
                       {t('login.forgotPassword')}
@@ -296,6 +299,7 @@ export function Login() {
                 <div className="relative flex items-center">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    aria-label="Password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={8} required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t('login.passwordPlaceholder')}
@@ -348,10 +352,10 @@ export function Login() {
               </button>
             </form>
 
-            {/* Demo Helper Hint */}
+            {/* Account help */}
             <div className="mt-4 p-3 bg-primary-light/50 border border-primary/20 rounded-xl text-[11px] text-text-secondary font-medium flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary shrink-0" />
-              <span>{t('login.demoHint')}</span>
+              <span>Use your own account. New customers can create an account above.</span>
             </div>
           </div>
 

@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { revenueAnalyticsData } from '../data/adminMockData';
+import { useOrders } from '../../context/OrderContext';
 
 export function ChartCard({ title, subtitle }) {
   const [period, setPeriod] = useState('7d');
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
-  const data = revenueAnalyticsData[period] || revenueAnalyticsData['7d'];
+  const { orders } = useOrders();
+  const count = period === '1y' ? 12 : period === '30d' ? 30 : 7;
+  const data = Array.from({length:count}, (_, i) => {
+    const start = new Date(); start.setHours(0,0,0,0);
+    if(period === '1y') { start.setDate(1); start.setMonth(start.getMonth()-(count-1-i)); } else start.setDate(start.getDate()-(count-1-i));
+    const end = new Date(start); if(period === '1y') end.setMonth(end.getMonth()+1); else end.setDate(end.getDate()+1);
+    const group = orders.filter(o => new Date(o.createdAt) >= start && new Date(o.createdAt) < end);
+    return {label:start.toLocaleDateString('en-IN', period === '1y' ? {month:'short'} : {day:'numeric',month:'short'}), revenue:group.filter(o => o.status === 'Delivered').reduce((s,o) => s+o.total,0), orders:group.length, customers:new Set(group.map(o => o.userId)).size};
+  });
   const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
   const maxOrders = Math.max(...data.map((d) => d.orders), 1);
 

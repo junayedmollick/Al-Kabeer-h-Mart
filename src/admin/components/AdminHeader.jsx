@@ -16,7 +16,7 @@ export function AdminHeader({ onToggleMobile }) {
   const { user } = useAuth();
   const location = useLocation();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Dynamic breadcrumb / title based on pathname
   const getPageMeta = () => {

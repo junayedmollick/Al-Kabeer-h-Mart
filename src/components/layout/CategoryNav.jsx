@@ -1,3 +1,4 @@
+import { useCatalog } from '../../context/CatalogContext';
 import React, { useRef, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -20,7 +21,6 @@ import {
   Armchair,
   BookOpen
 } from 'lucide-react';
-import { categories } from '../../data/categories';
 import { useLanguage } from '../../context/LanguageContext';
 
 const iconMap = {
@@ -43,6 +43,7 @@ const iconMap = {
 };
 
 export function CategoryNav() {
+  const { categories } = useCatalog();
   const scrollRef = useRef(null);
   const location = useLocation();
   const { language } = useLanguage();

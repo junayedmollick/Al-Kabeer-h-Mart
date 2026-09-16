@@ -1,3 +1,4 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import {
   Home,
@@ -13,49 +14,18 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { AddressModal } from './AddressModal';
 
-const DEFAULT_ADDRESSES = [
-  {
-    id: 'addr-default-1',
-    type: 'home',
-    name: 'Tariq Ahmed',
-    phone: '+91 9002461519',
-    house: 'House No. 12',
-    street: 'Mollar Chawk, Sarkarpara More, Bhagabatipur Rajar Road',
-    landmark: 'Near Sarkarpara Masjid',
-    city: 'Nawabpur, Chanditala - 712701, Hooghly, West Bengal',
-    pincode: '712701',
-    isDefault: true,
-    hubTime: '10–15 Mins Hub',
-  },
-];
+
 
 export function AddressesTab({ phone }) {
   const { t } = useLanguage();
-  const [addresses, setAddresses] = useState(() => {
-    try {
-      const saved = localStorage.getItem('alkabeer_saved_addresses');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (err) {
-      console.warn('Error reading saved addresses:', err);
-    }
-    return DEFAULT_ADDRESSES;
-  });
+  const { user, saveAddresses } = useAuth();
+  const addresses = user?.addresses || [];
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [feedback, setFeedback] = useState('');
 
-  // Persist addresses to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('alkabeer_saved_addresses', JSON.stringify(addresses));
-    } catch (err) {
-      console.warn('Error saving addresses:', err);
-    }
-  }, [addresses]);
+
 
   const showFeedback = (msg) => {
     setFeedback(msg);
@@ -74,72 +44,14 @@ export function AddressesTab({ phone }) {
     setIsModalOpen(true);
   };
 
-  const handleSaveAddress = (formData) => {
-    if (editingAddress) {
-      // Edit existing
-      setAddresses((prev) =>
-        prev.map((item) => {
-          if (item.id === editingAddress.id) {
-            return {
-              ...item,
-              ...formData,
-            };
-          }
-          // If edited one is set to default, unset others
-          if (formData.isDefault) {
-            return { ...item, isDefault: false };
-          }
-          return item;
-        })
-      );
-      showFeedback('Address updated successfully!');
-    } else {
-      // Add new
-      const newAddress = {
-        id: `addr-${Date.now()}`,
-        ...formData,
-        hubTime: '10–15 Mins Hub',
-      };
-
-      setAddresses((prev) => {
-        if (formData.isDefault) {
-          return [newAddress, ...prev.map((item) => ({ ...item, isDefault: false }))];
-        }
-        return [newAddress, ...prev];
-      });
-      showFeedback('New delivery address added successfully!');
-    }
+  const handleSaveAddress = async formData => {
+    const item = { ...formData, id: editingAddress?.id || crypto.randomUUID() };
+    let next = editingAddress ? addresses.map(a => a.id === item.id ? item : a) : [...addresses, item];
+    if(item.isDefault) next = next.map(a => ({...a, isDefault:a.id === item.id}));
+    try { await saveAddresses(next); showFeedback('Address saved.'); setIsModalOpen(false); return true; } catch(e) { showFeedback(e.message); return false; }
   };
-
-  const handleSetDefault = (id) => {
-    setAddresses((prev) =>
-      prev.map((item) => ({
-        ...item,
-        isDefault: item.id === id,
-      }))
-    );
-    showFeedback('Default delivery address updated!');
-  };
-
-  const handleDelete = (id) => {
-    if (addresses.length <= 1) {
-      alert('You must keep at least one saved delivery address.');
-      return;
-    }
-
-    if (window.confirm('Are you sure you want to delete this delivery address?')) {
-      setAddresses((prev) => {
-        const filtered = prev.filter((item) => item.id !== id);
-        // If deleted address was default, make the first one default
-        const hadDefault = filtered.some((item) => item.isDefault);
-        if (!hadDefault && filtered.length > 0) {
-          filtered[0].isDefault = true;
-        }
-        return filtered;
-      });
-      showFeedback('Address deleted.');
-    }
-  };
+  const handleSetDefault = async id => { try { await saveAddresses(addresses.map(a => ({...a,isDefault:a.id === id}))); showFeedback('Default address updated.'); } catch(e) { showFeedback(e.message); } };
+  const handleDelete = async id => { if(!window.confirm('Delete this saved address?')) return; try { await saveAddresses(addresses.filter(a => a.id !== id)); showFeedback('Address deleted.'); } catch(e) { showFeedback(e.message); } };
 
   const getTypeIcon = (type) => {
     switch (type) {

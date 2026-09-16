@@ -1,3 +1,4 @@
+import { useCatalog } from '../../context/CatalogContext';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -18,6 +19,8 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export function Footer({ onOpenVip }) {
   const { t } = useLanguage();
+  const { settings } = useCatalog();
+  const whatsappNumber = settings.whatsapp.replace(/\D/g, '');
 
   return (
     <footer className="relative bg-[#F8F9FA] text-text-primary pt-0 pb-28 sm:pb-16 border-t border-border mt-14 sm:mt-20">
@@ -40,7 +43,7 @@ export function Footer({ onOpenVip }) {
                 <span className="truncate">{t('footer.deliveryHubLine')}</span>
               </div>
               <div className="text-xs sm:text-sm md:text-base font-black text-text-primary leading-snug">
-                {t('footer.hubAddress')}
+                {settings.address}
               </div>
             </div>
           </div>
@@ -59,9 +62,7 @@ export function Footer({ onOpenVip }) {
                   03212-2224080
                 </a>
                 <span className="text-border">|</span>
-                <a href="tel:9002461519" className="hover:text-primary transition-colors whitespace-nowrap">
-                  9002461519
-                </a>
+                <a href={'tel:' + settings.phone} className="hover:text-primary transition-colors whitespace-nowrap">{settings.phone}</a>
                 <span className="text-border">|</span>
                 <a href="tel:9635066178" className="hover:text-primary transition-colors whitespace-nowrap">
                   9635066178
@@ -77,7 +78,7 @@ export function Footer({ onOpenVip }) {
           {/* Right: Instant Order Action */}
           <div className="w-full xl:w-auto flex shrink-0 relative z-10">
             <a
-              href="https://wa.me/919002461519?text=Hello%20Al%20Kabeer%20H%20Mart,%20I%20would%20like%20to%20order%20groceries."
+              href={'https://wa.me/' + whatsappNumber}
               target="_blank"
               rel="noreferrer"
               className="w-full xl:w-auto bg-[#25D366] hover:bg-[#1ebc5c] text-white font-black px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl shadow-sm transition-all hover:scale-105 active:scale-95 text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
@@ -231,9 +232,9 @@ export function Footer({ onOpenVip }) {
                 </a>
               </li>
               <li>
-                <a href="tel:9002461519" className="hover:text-primary transition-colors flex items-center gap-1">
+                <a href={'tel:' + settings.phone} className="hover:text-primary transition-colors flex items-center gap-1">
                   <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />
-                  <span>Mobile: 9002461519</span>
+                  <span>Mobile: {settings.phone}</span>
                 </a>
               </li>
               <li>
@@ -262,13 +263,13 @@ export function Footer({ onOpenVip }) {
             </p>
             <div className="flex flex-col sm:flex-row md:flex-col gap-2">
               <a
-                href="https://wa.me/919002461519?text=Hello%20Al%20Kabeer%20H%20Mart,%20I%20would%20like%20to%20place%20an%20order."
+                href={'https://wa.me/' + whatsappNumber}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full bg-[#25D366] hover:bg-[#1ebc5c] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow-xs cursor-pointer"
               >
                 <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>WhatsApp: 9002461519</span>
+                <span>WhatsApp: {settings.whatsapp}</span>
               </a>
               <a
                 href="tel:9635066178"
@@ -309,7 +310,7 @@ export function Footer({ onOpenVip }) {
             </a>
             <span className="text-border select-none">•</span>
             <a
-              href="https://wa.me/919002461519"
+              href={'https://wa.me/' + whatsappNumber}
               target="_blank"
               rel="noreferrer"
               className="whitespace-nowrap hover:text-primary transition-colors"

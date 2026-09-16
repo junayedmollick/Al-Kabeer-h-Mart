@@ -24,7 +24,7 @@ import {
 
 export function Account({ onOpenVip, defaultTab = 'profile' }) {
   const { isVip, vipMember } = useCart();
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,15 +40,11 @@ export function Account({ onOpenVip, defaultTab = 'profile' }) {
     }
   }, [tabQuery, defaultTab]);
 
-  const [profile, setProfile] = useState({
-    name: user?.name || vipMember?.name || 'Tariq Ahmed',
-    email: user?.email || 'tariq.ahmed@example.com',
-    phone: user?.phone || '+91 9002461519',
-    address: user?.address || 'Mollar Chawk, Sarkarpara More, Bhagabatipur, Hooghly - 712701',
-  });
+  const profile = user;
+  const setProfile = updateProfile;
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try { await logout(); } catch(e) { alert(e.message); return; }
     navigate('/');
   };
 
@@ -165,7 +161,7 @@ export function Account({ onOpenVip, defaultTab = 'profile' }) {
           
           {/* User Profile Summary Card */}
           <div className="bg-surface rounded-3xl p-5 border border-border shadow-subtle flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary text-white font-black text-xl flex items-center justify-center shadow-xs shrink-0">
+            <div className="w-14 h-14 rounded-full bg-primary text-white font-black text-xl flex items-center justify-center shadow-xs shrink-0">
               {profile.name.charAt(0)}
             </div>
             <div className="min-w-0">

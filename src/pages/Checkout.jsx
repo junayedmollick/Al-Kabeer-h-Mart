@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { api } from '../lib/api';
+import { useCatalog } from '../context/CatalogContext';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   ShoppingBag,
@@ -22,6 +24,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { PaymentOptions } from '../components/PaymentOptions';
 
 export function Checkout() {
+  const { settings } = useCatalog();
+  const [quote, setQuote] = useState(null), [quoteError, setQuoteError] = useState(''), [orderError, setOrderError] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const requestKey = useRef(crypto.randomUUID());
   const location = useLocation();
   const navigate = useNavigate();
   const { cart, cartSubtotal, deliveryFee, isVip, clearCart } = useCart();
@@ -37,48 +43,12 @@ export function Checkout() {
     ? [{ ...state.product, quantity: state.quantity || 1 }]
     : cart;
 
-  // Form State initialized from saved addresses or fallback
-  const initialAddr = (() => {
-    try {
-      const saved = localStorage.getItem('alkabeer_saved_addresses');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const def = parsed.find((a) => a.isDefault) || parsed[0];
-        if (def) {
-          const formatted = [def.house, def.street, def.landmark, def.city]
-            .filter(Boolean)
-            .join(', ');
-          return {
-            name: def.name || user?.name || 'Tariq Ahmed',
-            phone: def.phone ? def.phone.replace('+91 ', '').replace('+91', '') : user?.phone || '9002461519',
-            address: formatted || user?.address || 'Mollar Chawk, Sarkarpara More, Bhagabatipur, Hooghly - 712701',
-            pincode: def.pincode || '712701',
-          };
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-    return {
-      name: user?.name || 'Tariq Ahmed',
-      phone: user?.phone || '9002461519',
-      address: user?.address || 'Mollar Chawk, Sarkarpara More, Bhagabatipur, Hooghly - 712701',
-      pincode: '712701',
-    };
-  })();
-
+  const def = user?.addresses?.find(a => a.isDefault) || user?.addresses?.[0];
+  const initialAddr = { name: def?.name || user?.name || '', phone: def?.phone || user?.phone || '', address: def ? [def.house, def.street, def.landmark, def.city].filter(Boolean).join(', ') : user?.address || '', pincode: def?.pincode || settings.servicePincodes[0] || '' };
   const [name, setName] = useState(initialAddr.name);
   const [phone, setPhone] = useState(initialAddr.phone);
   const [address, setAddress] = useState(initialAddr.address);
   const [pincode, setPincode] = useState(initialAddr.pincode);
-  const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod', 'upi', 'card', 'netbanking'
-  const [paymentDetails, setPaymentDetails] = useState({
-    cardNumber: '',
-    cardExpiry: '',
-    cardCvv: '',
-    cardName: user?.name || 'Tariq Ahmed',
-    selectedBank: 'HDFC Bank',
-  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
 
@@ -99,115 +69,19 @@ export function Checkout() {
     }
   }, [checkoutItems, orderSuccess, isAuthenticated, navigate]);
 
-  const itemsTotal = isDirect
-    ? (state.product?.price || 0) * (state.quantity || 1)
-    : cartSubtotal;
-
-  const currentDeliveryFee = isVip ? 0 : 10;
-  const finalTotal = itemsTotal + currentDeliveryFee;
-
-  const getPaymentPreferenceLabel = () => {
-    switch (paymentMethod) {
-      case 'cod':
-        return 'Cash on Delivery (Pay at Door)';
-      case 'upi':
-        return 'UPI / QR (alkabeermart@upi)';
-      case 'card': {
-        const last4 = paymentDetails.cardNumber.trim().slice(-4);
-        return `Credit/Debit Card ${last4 ? `(ending in ${last4})` : ''}`;
-      }
-      case 'netbanking':
-        return `Net Banking (${paymentDetails.selectedBank || 'Selected Bank'})`;
-      default:
-        return 'Cash on Delivery';
-    }
-  };
-
-  const handlePlaceOrder = (e) => {
-    e.preventDefault();
-    if (!name.trim() || !phone.trim() || !address.trim()) {
-      alert('Please provide complete delivery details');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    setTimeout(() => {
-      const newOrderId = 'AKM-' + Math.floor(100000 + Math.random() * 900000);
-      const currentDate = new Date().toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-      const paymentPreference = getPaymentPreferenceLabel();
-
-      const newOrder = {
-        id: newOrderId,
-        date: currentDate,
-        status: 'Order Received',
-        statusType: 'active',
-        subtotal: itemsTotal,
-        deliveryFee: currentDeliveryFee,
-        total: finalTotal,
-        paymentMethod: paymentPreference,
-        customerName: name.trim(),
-        customerPhone: phone.trim(),
-        deliveryAddress: address.trim(),
-        pincode: pincode.trim(),
-        estDelivery: '10–15 Minutes',
-        items: checkoutItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          weight: item.weight,
-          quantity: item.quantity,
-          price: item.price,
-          image: item.image,
-        })),
-      };
-
-      // Add to persistent OrderContext
-      addOrder(newOrder);
-
-      // If cart checkout, clear cart
-      if (!isDirect) {
-        clearCart();
-      }
-
-      // Generate formatted WhatsApp message per requirements
-      let message = `🛒 *AL KABEER H MART — New Order*\n`;
-      message += `*Order ID:* ${newOrderId}\n`;
-      message += `*Date:* ${currentDate}\n\n`;
-      message += `📦 *Order Details*\n`;
-      message += `-------------------------\n`;
-
-      checkoutItems.forEach((item, index) => {
-        message += `${index + 1}. *${item.name}*\n`;
-        message += `   Quantity: ${item.quantity} (${item.weight || ''})\n`;
-        message += `   Price: ₹${item.price * item.quantity}\n\n`;
-      });
-
-      message += `-------------------------\n`;
-      message += `💰 *Subtotal:* ₹${itemsTotal}\n`;
-      message += `🚚 *Delivery:* ${currentDeliveryFee === 0 ? 'FREE (VIP)' : `₹${currentDeliveryFee}`}\n`;
-      message += `💳 *Payment Preference:* ${paymentPreference}\n`;
-      message += `💵 *Total:* ₹${finalTotal}\n`;
-      message += `-------------------------\n\n`;
-      message += `👤 *Customer Details*\n`;
-      message += `Name: ${name.trim()}\n`;
-      message += `Phone: ${phone.trim()}\n\n`;
-      message += `📍 *Delivery Address:*\n`;
-      message += `${address.trim()} - ${pincode.trim()}\n\n`;
-      message += `⚡ *Estimated Dispatch:* 10–15 Minutes from Bhagabatipur Hub\n\n`;
-      message += `Thank you for ordering from AL KABEER H MART!`;
-
-      const whatsAppUrl = `https://wa.me/919002461519?text=${encodeURIComponent(message)}`;
-
-      // Open WhatsApp with properly formatted order message
-      window.open(whatsAppUrl, '_blank');
-
-      setIsSubmitting(false);
-      setOrderSuccess({ ...newOrder, whatsAppUrl });
-    }, 600);
+  const quoteInput = JSON.stringify({ items: checkoutItems.map(({id,quantity}) => ({id,quantity})), couponCode });
+  useEffect(() => { let active = true; setQuote(null); setQuoteError(''); if (isAuthenticated && checkoutItems.length && !orderSuccess) api('/orders/quote', { method: 'POST', body: JSON.parse(quoteInput) }).then(q => { if(active) setQuote(q); }).catch(e => { if(active) setQuoteError(e.message); }); return () => { active = false; }; }, [quoteInput, isAuthenticated, orderSuccess]);
+  const itemsTotal = quote?.subtotal ?? (isDirect ? (state.product?.price || 0) * (state.quantity || 1) : cartSubtotal);
+  const currentDeliveryFee = quote?.deliveryFee ?? settings.deliveryFee;
+  const finalTotal = quote?.total ?? itemsTotal + currentDeliveryFee;
+  const handlePlaceOrder = async e => {
+    e.preventDefault(); if (isSubmitting || !quote) return;
+    setIsSubmitting(true); setOrderError('');
+    try {
+      const order = await addOrder({ ...JSON.parse(quoteInput), customerName: name, customerPhone: phone, deliveryAddress: address, pincode, paymentMethod: 'cod', expectedTotal: quote.total }, requestKey.current);
+      setOrderSuccess(order); if (!isDirect) clearCart();
+    } catch(e) { setOrderError(e.message); try { setQuote(await api('/orders/quote', { method:'POST', body: JSON.parse(quoteInput) })); } catch(q) { setQuote(null); setQuoteError(q.message); } }
+    finally { setIsSubmitting(false); }
   };
 
   if (!isAuthenticated) {
@@ -232,7 +106,7 @@ export function Checkout() {
             {t('checkout.orderSuccessTitle')}
           </h1>
           <p className="text-xs sm:text-sm text-text-secondary mt-1.5 max-w-md mx-auto leading-relaxed">
-            Your order has been recorded and WhatsApp has been opened to dispatch this order to our Bhagabatipur hub.
+            Your order is saved and visible to the store team. Track its status in My Orders. Pay cash when it arrives.
           </p>
 
           <div className="my-6 p-4 sm:p-5 bg-surface-soft rounded-2xl border border-border/80 text-left space-y-3">
@@ -258,17 +132,8 @@ export function Checkout() {
             </div>
           </div>
 
-          {/* Action Buttons: WhatsApp Reopen + View Orders */}
+          {/* View orders and continue shopping */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href={orderSuccess.whatsAppUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1ebc5c] text-white font-black px-6 py-3.5 rounded-xl text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span>Open in WhatsApp</span>
-            </a>
 
             <button
               type="button"
@@ -427,12 +292,7 @@ export function Checkout() {
             </div>
 
             {/* Reusable PaymentOptions Accordion Component */}
-            <PaymentOptions
-              selectedMethod={paymentMethod}
-              onSelectMethod={setPaymentMethod}
-              paymentDetails={paymentDetails}
-              onUpdatePaymentDetails={setPaymentDetails}
-            />
+            <PaymentOptions />
           </div>
 
         </div>
@@ -502,13 +362,16 @@ export function Checkout() {
               </div>
             </div>
 
-            {/* WhatsApp Order Information Stamp */}
+            <div className="my-4"><label htmlFor="coupon-code" className="text-xs font-bold">Coupon code (optional)</label><input id="coupon-code" value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} className="w-full border border-border rounded-xl p-3 mt-2" />{quote?.discount > 0 && <p className="text-primary">Discount: ₹{quote.discount}</p>}</div>
+            {(quoteError || orderError) && <p role="alert" className="my-4 text-red-700">{orderError || quoteError}</p>}
+            {!quote && !quoteError && <p role="status">Checking prices and availability…</p>}
+            {/* Order confirmation */}
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80 flex items-start gap-2.5 text-[11px] text-emerald-900">
               <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold">Final Order via WhatsApp</span>
+                <span className="font-bold">Order securely with cash on delivery</span>
                 <p className="text-emerald-700 mt-0.5">
-                  Confirming this order will open WhatsApp with your full receipt, delivery address, and payment preference.
+                  The store will receive your order immediately. You can track progress from your account.
                 </p>
               </div>
             </div>
@@ -516,7 +379,7 @@ export function Checkout() {
             {/* Submit CTA Button */}
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !quote}
               className="w-full bg-[#25D366] hover:bg-[#1ebc5c] active:scale-[0.99] text-white font-black py-4 px-5 rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-75 text-sm"
             >
               {isSubmitting ? (
@@ -524,7 +387,7 @@ export function Checkout() {
               ) : (
                 <>
                   <MessageCircle className="w-4 h-4" />
-                  <span>Confirm & Order on WhatsApp</span>
+                  <span>Place order • Pay on delivery</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

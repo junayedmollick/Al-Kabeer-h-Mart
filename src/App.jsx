@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { CatalogProvider } from './context/CatalogContext';
+import { AdminDataProvider } from './context/AdminDataContext';
+import { RequireAuth } from './components/RequireAuth';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -14,14 +17,14 @@ import { Checkout } from './pages/Checkout';
 import { Login } from './pages/Login';
 
 // Modern Admin Panel imports
-import { AdminLayout } from './admin/components/AdminLayout';
-import { AdminDashboard } from './admin/pages/AdminDashboard';
-import { AdminProducts } from './admin/pages/AdminProducts';
-import { AdminCategories } from './admin/pages/AdminCategories';
-import { AdminOrders } from './admin/pages/AdminOrders';
-import { AdminCustomers } from './admin/pages/AdminCustomers';
-import { AdminPromotions } from './admin/pages/AdminPromotions';
-import { AdminSettings } from './admin/pages/AdminSettings';
+const AdminLayout = lazy(() => import('./admin/components/AdminLayout').then(module => ({ default: module.AdminLayout })));
+const AdminDashboard = lazy(() => import('./admin/pages/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const AdminProducts = lazy(() => import('./admin/pages/AdminProducts').then(module => ({ default: module.AdminProducts })));
+const AdminCategories = lazy(() => import('./admin/pages/AdminCategories').then(module => ({ default: module.AdminCategories })));
+const AdminOrders = lazy(() => import('./admin/pages/AdminOrders').then(module => ({ default: module.AdminOrders })));
+const AdminCustomers = lazy(() => import('./admin/pages/AdminCustomers').then(module => ({ default: module.AdminCustomers })));
+const AdminPromotions = lazy(() => import('./admin/pages/AdminPromotions').then(module => ({ default: module.AdminPromotions })));
+const AdminSettings = lazy(() => import('./admin/pages/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 // Scroll to top on page navigation
 function ScrollToTop() {
@@ -69,7 +72,7 @@ function MainLayout() {
             }
           />
           <Route path="/category/:slug" element={<CategoryPage />} />
-          <Route path="/account" element={<Account onOpenVip={() => setIsVipOpen(true)} />} />
+          <Route path="/account" element={<RequireAuth><Account onOpenVip={() => setIsVipOpen(true)} /></RequireAuth>} />
           <Route path="/cart" element={<Cart onOpenVip={() => setIsVipOpen(true)} />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
@@ -102,14 +105,14 @@ function MainLayout() {
 
 export default function App() {
   return (
-    <Router>
+    <Router><Suspense fallback={<div className="p-12 text-center">Loading page…</div>}>
       <LanguageProvider>
-        <AuthProvider>
+        <AuthProvider><CatalogProvider>
           <CartProvider>
             <OrderProvider>
               <Routes>
                 {/* Modern Admin Dashboard Routes */}
-                <Route path="/admin" element={<AdminLayout />}>
+                <Route path="/admin" element={<RequireAuth admin><AdminDataProvider><AdminLayout /></AdminDataProvider></RequireAuth>}>
                   <Route index element={<AdminDashboard />} />
                   <Route path="products" element={<AdminProducts />} />
                   <Route path="categories" element={<AdminCategories />} />
@@ -124,8 +127,8 @@ export default function App() {
               </Routes>
             </OrderProvider>
           </CartProvider>
-        </AuthProvider>
+        </CatalogProvider></AuthProvider>
       </LanguageProvider>
-    </Router>
+    </Suspense></Router>
   );
 }

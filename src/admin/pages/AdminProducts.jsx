@@ -1,3 +1,5 @@
+import { api } from '../../lib/api';
+import { useCatalog } from '../../context/CatalogContext';
 import React, { useState, useMemo } from 'react';
 import {
   Plus,
@@ -15,8 +17,6 @@ import {
   Check
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { products as initialProductList } from '../../data/products';
-import { categories } from '../../data/categories';
 import { StatusBadge } from '../components/StatusBadge';
 import { AdminModal } from '../components/AdminModal';
 import { AdminTable } from '../components/AdminTable';
@@ -26,32 +26,7 @@ const STORAGE_KEY = 'alkabeer_admin_products';
 export function AdminProducts() {
   const { t } = useLanguage();
 
-  // Load from localStorage or initial product list
-  const [productList, setProductList] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // fallback
-    }
-    // Enrich with initial stock numbers for admin realism
-    return initialProductList.map((p, idx) => ({
-      ...p,
-      stock: p.stock ?? (idx % 7 === 0 ? 4 : idx % 5 === 0 ? 8 : 35 + (idx % 20)),
-    }));
-  });
-
-  const saveProducts = (updated) => {
-    setProductList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-  };
+  const { products: productList, categories, refreshCatalog } = useCatalog();
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,49 +95,19 @@ export function AdminProducts() {
     setIsModalOpen(true);
   };
 
-  // Handle Form Submit
-  const handleSaveProduct = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.price) return;
-
-    if (editingProduct) {
-      // Update
-      const updated = productList.map((item) =>
-        item.id === editingProduct.id
-          ? {
-              ...item,
-              ...formData,
-              price: Number(formData.price),
-              oldPrice: formData.oldPrice ? Number(formData.oldPrice) : Number(formData.price),
-              stock: Number(formData.stock) || 0,
-            }
-          : item
-      );
-      saveProducts(updated);
-      showToast(t('admin.products.saveSuccess'));
-    } else {
-      // Add
-      const newProduct = {
-        id: Date.now(),
-        ...formData,
-        price: Number(formData.price),
-        oldPrice: formData.oldPrice ? Number(formData.oldPrice) : Number(formData.price),
-        stock: Number(formData.stock) || 0,
-      };
-      saveProducts([newProduct, ...productList]);
-      showToast(t('admin.products.saveSuccess'));
-    }
-
-    setIsModalOpen(false);
+  const [saving, setSaving] = useState(false);
+  const handleSaveProduct = async e => {
+    e.preventDefault(); if(saving) return; setSaving(true);
+    try {
+      const body = { revision: editingProduct?.revision, ...formData, price: Number(formData.price), oldPrice: Number(formData.oldPrice || formData.price), stock: Number(formData.stock) };
+      await api('/admin/products' + (editingProduct ? '/' + encodeURIComponent(editingProduct.id) : ''), { method: editingProduct ? 'PUT' : 'POST', body });
+      await refreshCatalog(); setIsModalOpen(false); showToast('Product saved.');
+    } catch(e) { showToast(e.message); } finally { setSaving(false); }
   };
-
-  // Handle Delete
-  const handleConfirmDelete = () => {
-    if (!deletingProduct) return;
-    const updated = productList.filter((item) => item.id !== deletingProduct.id);
-    saveProducts(updated);
-    setDeletingProduct(null);
-    showToast(t('admin.products.deleteSuccess'));
+  const handleConfirmDelete = async () => {
+    if(!deletingProduct || saving) return; setSaving(true);
+    try { await api('/admin/products/' + encodeURIComponent(deletingProduct.id), { method: 'DELETE' }); await refreshCatalog(); setDeletingProduct(null); showToast('Product deleted.'); }
+    catch(e) { showToast(e.message); } finally { setSaving(false); }
   };
 
   // Filtered Products
@@ -710,7 +655,7 @@ export function AdminProducts() {
               {t('admin.common.cancel')}
             </button>
             <button
-              type="submit"
+              type="submit" disabled={saving}
               className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               {t('admin.common.save')}

@@ -1,10 +1,11 @@
+import { useCatalog } from '../context/CatalogContext';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { shopCategories } from '../data/categories';
 import { useLanguage } from '../context/LanguageContext';
 
 export function CategoryGrid() {
+  const { shopCategories } = useCatalog();
   const { t, language } = useLanguage();
 
   return (

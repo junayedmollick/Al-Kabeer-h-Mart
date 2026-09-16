@@ -1,3 +1,5 @@
+import { api } from '../../lib/api';
+import { useAdminData } from '../../context/AdminDataContext';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell,
@@ -12,10 +14,15 @@ import {
   Inbox,
   X,
 } from 'lucide-react';
-import { initialNotifications } from '../data/adminMockData';
+import { useOrders } from '../../context/OrderContext';
+import { useCatalog } from '../../context/CatalogContext';
 
 export function NotificationDrawer({ isOpen, onClose, onUnreadCountChange }) {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const { orders } = useOrders(), { products } = useCatalog();
+  const { notificationPreferences } = useAdminData();
+  const [readIds, setReadIds] = useState(notificationPreferences.read), [hiddenIds, setHiddenIds] = useState(notificationPreferences.hidden);
+  const savePreferences = async (read, hidden) => { try { const saved = await api('/admin/notifications/preferences', {method:'PUT',body:{read:[...new Set(read)].slice(-500),hidden:[...new Set(hidden)].slice(-500)}}); setReadIds(saved.read); setHiddenIds(saved.hidden); } catch(e) { alert(e.message); } };
+  const notifications = [...orders.filter(o => o.statusType === 'active').map(o => ({id:o.id,title:'Order ' + o.id,message:o.customerName + ' · ₹' + o.total + ' · ' + o.status,time:o.date,type:'order'})), ...products.filter(p => p.stock < 10).map(p => ({id:'stock-' + p.id,title:'Low stock',message:p.name + ': ' + p.stock + ' remaining',time:'Current inventory',type:'stock'}))].filter(n => !hiddenIds.includes(n.id)).map(n => ({...n,read:readIds.includes(n.id)}));
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'unread'
   const drawerRef = useRef(null);
 
@@ -55,24 +62,10 @@ export function NotificationDrawer({ isOpen, onClose, onUnreadCountChange }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markItemRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const deleteNotification = (e, id) => {
-    e.stopPropagation();
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const clearReadNotifications = () => {
-    setNotifications((prev) => prev.filter((n) => !n.read));
-  };
+  const markAllRead = () => savePreferences(notifications.map(n => n.id), hiddenIds);
+  const markItemRead = id => savePreferences([...readIds,id], hiddenIds);
+  const deleteNotification = (e,id) => { e.stopPropagation(); savePreferences(readIds, [...hiddenIds,id]); };
+  const clearReadNotifications = () => savePreferences(readIds, [...hiddenIds,...readIds]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const filteredNotifications =

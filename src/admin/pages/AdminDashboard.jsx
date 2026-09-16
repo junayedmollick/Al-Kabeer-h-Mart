@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useOrders } from '../../context/OrderContext';
-import { products } from '../../data/products';
+import { useCatalog } from '../../context/CatalogContext';
+import { useAdminData } from '../../context/AdminDataContext';
 import { StatCard } from '../components/StatCard';
 import { ChartCard } from '../components/ChartCard';
 import { StatusBadge } from '../components/StatusBadge';
@@ -25,89 +26,14 @@ import { AdminModal } from '../components/AdminModal';
 export function AdminDashboard() {
   const { t } = useLanguage();
   const { orders } = useOrders();
+  const { products, categories } = useCatalog();
+  const { customers } = useAdminData();
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Top selling products sample
-  const topProducts = [
-    {
-      id: 1,
-      name: 'Amul Taaza Toned Fresh Milk',
-      category: 'Dairy & Eggs',
-      price: 27,
-      sales: 420,
-      stock: 48,
-      status: 'In Stock',
-      image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=200',
-    },
-    {
-      id: 16,
-      name: 'Aashirvaad Superior MP Atta',
-      category: 'Food & Grocery',
-      price: 230,
-      sales: 312,
-      stock: 22,
-      status: 'In Stock',
-      image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=200',
-    },
-    {
-      id: 4,
-      name: 'Farm Fresh White Eggs',
-      category: 'Dairy & Eggs',
-      price: 42,
-      sales: 285,
-      stock: 4,
-      status: 'Low Stock',
-      image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&q=80&w=200',
-    },
-    {
-      id: 2,
-      name: 'Amul Butter - Pasteurized',
-      category: 'Dairy & Eggs',
-      price: 58,
-      sales: 240,
-      stock: 35,
-      status: 'In Stock',
-      image: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&q=80&w=200',
-    },
-    {
-      id: 9,
-      name: "Lays India's Magic Masala Chips",
-      category: 'Snacks & Munchies',
-      price: 20,
-      sales: 198,
-      stock: 65,
-      status: 'In Stock',
-      image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&q=80&w=200',
-    },
-  ];
-
-  // Low stock alert items
-  const lowStockItems = [
-    {
-      id: 4,
-      name: 'Farm Fresh White Eggs (6 pcs)',
-      category: 'Dairy & Eggs',
-      remaining: 4,
-      reorderPoint: 15,
-      price: 42,
-    },
-    {
-      id: 19,
-      name: 'Fortune Kachi Ghani Mustard Oil (1 L)',
-      category: 'Food & Grocery',
-      remaining: 6,
-      reorderPoint: 20,
-      price: 145,
-    },
-    {
-      id: 5,
-      name: 'Amul Masti Cup Fresh Curd (200 g)',
-      category: 'Dairy & Eggs',
-      remaining: 8,
-      reorderPoint: 25,
-      price: 25,
-    },
-  ];
+  const delivered = orders.filter(o => o.status === 'Delivered');
+  const totalRevenue = delivered.reduce((sum,o) => sum + o.total, 0);
+  const topProducts = products.map(p => ({...p, sales:delivered.reduce((sum,o) => sum + o.items.filter(i => String(i.id) === String(p.id)).reduce((n,i) => n + i.quantity,0),0), status:p.stock === 0 ? 'Out of Stock' : p.stock < 10 ? 'Low Stock' : 'In Stock'})).filter(p => p.sales > 0).sort((a,b) => b.sales-a.sales).slice(0,5);
+  const lowStockItems = products.filter(p => p.stock < 10).map(p => ({...p, remaining:p.stock, reorderPoint:10})).slice(0,5);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -128,7 +54,7 @@ export function AdminDashboard() {
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-text-primary tracking-tight">
-            {t('admin.dashboard.greeting')}
+            Store overview
           </h2>
           <p className="text-xs sm:text-sm text-text-secondary">
             {t('admin.dashboard.subtitle')}
@@ -158,30 +84,27 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <StatCard
           title={t('admin.dashboard.totalRevenue')}
-          value="₹1,84,320"
-          change="+14.2%"
+          value={'₹' + totalRevenue.toLocaleString('en-IN')}
           isPositive={true}
-          subtitle={t('admin.dashboard.todayGrowth')}
+          subtitle="From recorded store activity"
           icon={DollarSign}
           iconBg="bg-emerald-500/10"
           iconColor="text-emerald-500"
         />
         <StatCard
           title={t('admin.dashboard.totalOrders')}
-          value={orders.length > 0 ? String(orders.length * 52 + 120) : '428'}
-          change="+8.5%"
+          value={String(orders.length)}
           isPositive={true}
-          subtitle={t('admin.dashboard.ordersGrowth')}
+          subtitle="From recorded store activity"
           icon={ShoppingBag}
           iconBg="bg-blue-500/10"
           iconColor="text-blue-500"
         />
         <StatCard
           title={t('admin.dashboard.totalCustomers')}
-          value="1,240"
-          change="+18"
+          value={String(customers.length)}
           isPositive={true}
-          subtitle={t('admin.dashboard.customersGrowth')}
+          subtitle="From recorded store activity"
           icon={Users}
           iconBg="bg-purple-500/10"
           iconColor="text-purple-500"
@@ -189,7 +112,7 @@ export function AdminDashboard() {
         <StatCard
           title={t('admin.dashboard.totalProducts')}
           value={String(products.length)}
-          badgeText="16 Categories"
+          badgeText={categories.length + ' Categories'}
           subtitle={t('admin.dashboard.catalogCount')}
           icon={Package}
           iconBg="bg-amber-500/10"
@@ -313,11 +236,11 @@ export function AdminDashboard() {
                     <td className="px-4 py-3.5 font-bold text-text-primary text-xs">
                       {order.rider ? (
                         <div>
-                          <p>{order.deliveryAddress ? order.deliveryAddress.split(',')[0] : 'Customer'}</p>
+                          <p>{order.customerName || 'Customer'}</p>
                           <p className="text-[10px] text-text-muted">{order.date}</p>
                         </div>
                       ) : (
-                        'Customer'
+                        order.customerName || 'Customer'
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-text-secondary">
@@ -361,7 +284,7 @@ export function AdminDashboard() {
               </Link>
             </div>
             <p className="text-xs text-text-secondary mb-4">
-              Bestsellers this month at Bhagabatipur Mart
+              Products from delivered orders
             </p>
 
             <div className="space-y-3.5">

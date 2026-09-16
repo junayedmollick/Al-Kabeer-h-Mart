@@ -1,1 +1,9 @@
 .vercel
+
+# Backend secrets and persistent data
+.env
+.env.*
+!.env.example
+data/
+*.sqlite*
+*.log

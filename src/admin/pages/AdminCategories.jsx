@@ -1,3 +1,5 @@
+import { api } from '../../lib/api';
+import { useCatalog } from '../../context/CatalogContext';
 import React, { useState } from 'react';
 import {
   Layers,
@@ -10,8 +12,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { categories as initialCategories } from '../../data/categories';
-import { products } from '../../data/products';
 import { StatusBadge } from '../components/StatusBadge';
 import { AdminModal } from '../components/AdminModal';
 import { AdminTable } from '../components/AdminTable';
@@ -21,28 +21,7 @@ const STORAGE_KEY = 'alkabeer_admin_categories';
 export function AdminCategories() {
   const { t } = useLanguage();
 
-  const [categoryList, setCategoryList] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return initialCategories;
-  });
-
-  const saveCategories = (updated) => {
-    setCategoryList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-  };
-
+  const { categories: categoryList, products, refreshCatalog } = useCatalog();
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -64,7 +43,7 @@ export function AdminCategories() {
 
   // Calculate product count per category
   const getProductCount = (slug) => {
-    return products.filter((p) => p.category === slug).length || 8;
+    return products.filter((p) => p.category === slug).length;
   };
 
   const handleOpenAdd = () => {
@@ -95,40 +74,18 @@ export function AdminCategories() {
     setIsModalOpen(true);
   };
 
-  const handleSaveCategory = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
-
-    const subcatsArray = formData.subcategories
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    if (editingCategory) {
-      const updated = categoryList.map((item) =>
-        item.id === editingCategory.id
-          ? {
-              ...item,
-              ...formData,
-              subcategories: subcatsArray,
-            }
-          : item
-      );
-      saveCategories(updated);
-      showToast('Category updated successfully!');
-    } else {
-      const newSlug = formData.name.toLowerCase().replace(/\s+/g, '-');
-      const newCat = {
-        id: newSlug,
-        slug: newSlug,
-        ...formData,
-        subcategories: subcatsArray,
-      };
-      saveCategories([...categoryList, newCat]);
-      showToast('Category created successfully!');
-    }
-
-    setIsModalOpen(false);
+  const [saving, setSaving] = useState(false);
+  const handleSaveCategory = async e => {
+    e.preventDefault(); if(saving) return; setSaving(true);
+    try {
+      const slug = editingCategory?.slug || formData.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      await api('/admin/categories' + (editingCategory ? '/' + encodeURIComponent(editingCategory.id) : ''), { method: editingCategory ? 'PUT' : 'POST', body: { revision: editingCategory?.revision, ...formData, slug, subcategories: formData.subcategories.split(',').map(s => s.trim()).filter(Boolean) } });
+      await refreshCatalog(); setIsModalOpen(false); showToast('Category saved.');
+    } catch(e) { showToast(e.message); } finally { setSaving(false); }
+  };
+  const handleDeleteCategory = async () => {
+    if(!editingCategory || !window.confirm('Delete this category? Products must be moved first.')) return;
+    try { await api('/admin/categories/' + encodeURIComponent(editingCategory.id), { method:'DELETE' }); await refreshCatalog(); setIsModalOpen(false); showToast('Category deleted.'); } catch(e) { showToast(e.message); }
   };
 
   const filteredCategories = categoryList.filter(
@@ -384,6 +341,7 @@ export function AdminCategories() {
         subtitle="Manage grocery department names across English, Bengali and Hindi."
       >
         <form onSubmit={handleSaveCategory} className="space-y-4">
+          {editingCategory && <button type="button" className="text-red-700 text-sm" onClick={handleDeleteCategory}>Delete category</button>}
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-text-secondary mb-1">
@@ -487,7 +445,7 @@ export function AdminCategories() {
               {t('admin.common.cancel')}
             </button>
             <button
-              type="submit"
+              type="submit" disabled={saving}
               className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs cursor-pointer hover:scale-105 active:scale-95 transition-all"
             >
               {t('admin.common.save')}

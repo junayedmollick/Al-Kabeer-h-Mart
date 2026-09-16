@@ -21,8 +21,8 @@ const LOCAL_PRESETS = [
 export function AddressModal({ isOpen, onClose, onSave, initialData }) {
   const [formData, setFormData] = useState({
     type: 'home',
-    name: 'Tariq Ahmed',
-    phone: '+91 9002461519',
+    name: '',
+    phone: '',
     house: '',
     street: '',
     landmark: '',
@@ -39,8 +39,8 @@ export function AddressModal({ isOpen, onClose, onSave, initialData }) {
     if (initialData) {
       setFormData({
         type: initialData.type || 'home',
-        name: initialData.name || 'Tariq Ahmed',
-        phone: initialData.phone || '+91 9002461519',
+        name: initialData.name || '',
+        phone: initialData.phone || '',
         house: initialData.house || '',
         street: initialData.street || '',
         landmark: initialData.landmark || '',
@@ -51,8 +51,8 @@ export function AddressModal({ isOpen, onClose, onSave, initialData }) {
     } else {
       setFormData({
         type: 'home',
-        name: 'Tariq Ahmed',
-        phone: '+91 9002461519',
+        name: '',
+        phone: '',
         house: '',
         street: '',
         landmark: '',
@@ -160,13 +160,13 @@ export function AddressModal({ isOpen, onClose, onSave, initialData }) {
     setLocationError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.street.trim()) {
       setLocationError('Please enter street or area address.');
       return;
     }
-    onSave(formData);
+    if (await onSave(formData) === false) return;
     onClose();
   };
 

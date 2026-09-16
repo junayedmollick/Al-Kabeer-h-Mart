@@ -78,42 +78,10 @@ export function OrdersTab() {
     }
   };
 
-  const isCancellable = (status) => {
-    return status !== 'Delivered' && status !== 'Cancelled';
-  };
-
-  const handleConfirmCancel = (orderId) => {
-    const order = orders.find((o) => String(o.id).trim() === String(orderId).trim()) || orderToCancel;
-    cancelOrder(orderId);
-    setOrderToCancel(null);
-    setActiveSubTab('history');
-    setCancelFeedback(`Order #${orderId} has been cancelled successfully.`);
-
-    // Send formatted cancellation alert to WhatsApp
-    if (order) {
-      let message = `❌ *AL KABEER H MART — Order Cancellation*\n`;
-      message += `---------------------------------\n`;
-      message += `*Order ID:* #${order.id}\n`;
-      message += `*Order Date:* ${order.date}\n`;
-      message += `*Total Value:* ₹${order.total}\n`;
-      message += `*Delivery Address:* ${order.deliveryAddress}\n`;
-      if (order.items && order.items.length > 0) {
-        message += `---------------------------------\n`;
-        message += `*Cancelled Items:*\n`;
-        order.items.forEach((item, idx) => {
-          message += `${idx + 1}. ${item.name} (${item.weight || ''}) x ${item.quantity}\n`;
-        });
-      }
-      message += `---------------------------------\n`;
-      message += `⚠️ Please cancel this order immediately and do not dispatch from hub. Thank you!`;
-
-      const encoded = encodeURIComponent(message);
-      window.open(`https://wa.me/919002461519?text=${encoded}`, '_blank');
-    }
-
-    setTimeout(() => {
-      setCancelFeedback('');
-    }, 6000);
+  const isCancellable = status => status === 'Processing';
+  const handleConfirmCancel = async orderId => {
+    try { await cancelOrder(orderId); setOrderToCancel(null); setActiveSubTab('history'); setCancelFeedback('Order cancelled and stock restored.'); }
+    catch(e) { setCancelFeedback(e.message); }
   };
 
   const handleReorder = (items) => {

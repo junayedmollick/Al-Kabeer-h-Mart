@@ -1,6 +1,6 @@
+import { useCatalog } from '../context/CatalogContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, TrendingUp, Clock, ArrowRight } from 'lucide-react';
-import { products } from '../data/products';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 const trendingSearches = ['Amul Milk', 'Whole Wheat Bread', 'Mustard Oil', 'Aashirvaad Atta', 'Lays Chips', 'Eggs'];
 
 export function SearchBar({ searchQuery, onSearchChange, isMobile = false }) {
+  const { products } = useCatalog();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
   const { addToCart } = useCart();

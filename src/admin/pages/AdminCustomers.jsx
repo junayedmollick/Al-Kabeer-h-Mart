@@ -12,14 +12,14 @@ import {
   CreditCard
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { initialCustomers } from '../data/adminMockData';
+import { useAdminData } from '../../context/AdminDataContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { AdminModal } from '../components/AdminModal';
 import { AdminTable } from '../components/AdminTable';
 
 export function AdminCustomers() {
   const { t } = useLanguage();
-  const [customers, setCustomers] = useState(initialCustomers);
+  const { customers } = useAdminData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [viewingCustomer, setViewingCustomer] = useState(null);
@@ -325,11 +325,11 @@ export function AdminCustomers() {
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 text-primary" />
                 <span className="font-bold text-text-primary">
-                  {viewingCustomer.totalOrders} Completed Orders
+                  {viewingCustomer.totalOrders} Orders placed
                 </span>
               </div>
               <span className="text-[11px] text-text-muted">
-                Last delivery: {viewingCustomer.lastOrderDate}
+                Last order: {viewingCustomer.lastOrder}
               </span>
             </div>
           </div>

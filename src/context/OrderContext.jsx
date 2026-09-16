@@ -1,101 +1,20 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockOrders } from '../data/orders';
-
-const OrderContext = createContext();
-
-const STORAGE_KEY = 'alkabeer_orders_list';
-
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { api } from '../lib/api';
+import { useAuth } from './AuthContext';
+import { useCatalog } from './CatalogContext';
+const Context = createContext();
 export function OrderProvider({ children }) {
-  const [orders, setOrders] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : mockOrders;
-    } catch {
-      return mockOrders;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-    } catch {
-      // ignore storage error
-    }
-  }, [orders]);
-
-  const addOrder = (newOrder) => {
-    setOrders((prev) => [newOrder, ...prev]);
-  };
-
-  const cancelOrder = (orderId) => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        String(order.id).trim() === String(orderId).trim()
-          ? {
-              ...order,
-              status: 'Cancelled',
-              statusType: 'history',
-              cancelledAt: new Date().toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            }
-          : order
-      )
-    );
-  };
-
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (String(order.id).trim() === String(orderId).trim()) {
-          const isHistory = newStatus === 'Delivered' || newStatus === 'Cancelled';
-          const nowStr = new Date().toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-
-          return {
-            ...order,
-            status: newStatus,
-            statusType: isHistory ? 'history' : 'active',
-            ...(newStatus === 'Delivered' ? { deliveredAt: `Updated, ${nowStr}` } : {}),
-            ...(newStatus === 'Cancelled' ? { cancelledAt: `Cancelled, ${nowStr}` } : {}),
-          };
-        }
-        return order;
-      })
-    );
-  };
-
-  const getOrder = (orderId) => {
-    return orders.find((o) => o.id === orderId) || null;
-  };
-
-  return (
-    <OrderContext.Provider
-      value={{
-        orders,
-        addOrder,
-        cancelOrder,
-        updateOrderStatus,
-        getOrder,
-      }}
-    >
-      {children}
-    </OrderContext.Provider>
-  );
+  const { user } = useAuth(), { refreshCatalog } = useCatalog();
+  const [result, setResult] = useState({ owner: null, orders: [] }), [error, setError] = useState('');
+  const orders = result.owner === user?.id ? result.orders : [];
+  const refreshOrders = useCallback(async () => {
+    if (!user) { setResult({ owner: null, orders: [] }); setError(''); return; }
+    try { const value = await api(user.role === 'admin' ? '/admin/data' : '/orders'); setResult({ owner: user.id, orders: user.role === 'admin' ? value.orders : value }); setError(''); } catch(e) { setError(e.message); }
+  }, [user?.id, user?.role]);
+  useEffect(() => { refreshOrders(); const id = setInterval(refreshOrders, 10000); return () => clearInterval(id); }, [refreshOrders]);
+  const addOrder = async (body, key) => { const order = await api('/orders', { method: 'POST', body, headers: { 'Idempotency-Key': key } }); await Promise.all([refreshOrders(), refreshCatalog()]); return order; };
+  const cancelOrder = async id => { const order = await api('/orders/' + encodeURIComponent(id) + '/cancel', { method: 'POST', body: {} }); await Promise.all([refreshOrders(), refreshCatalog()]); return order; };
+  const updateOrderStatus = async (id, status) => { const order = await api('/admin/orders/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: { status } }); await Promise.all([refreshOrders(), refreshCatalog()]); return order; };
+  return <Context.Provider value={{ orders, addOrder, cancelOrder, updateOrderStatus, refreshOrders, getOrder: id => orders.find(o => o.id === id) }}>{error && user && <div role="alert" className="p-3 bg-red-50 text-red-700">Orders: {error} <button onClick={refreshOrders}>Retry</button></div>}{children}</Context.Provider>;
 }
-
-export function useOrders() {
-  const context = useContext(OrderContext);
-  if (!context) {
-    throw new Error('useOrders must be used within an OrderProvider');
-  }
-  return context;
-}
+export const useOrders = () => useContext(Context);

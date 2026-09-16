@@ -1,3 +1,4 @@
+import { useCatalog } from '../context/CatalogContext';
 import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -11,12 +12,11 @@ import {
   Zap,
   Tag
 } from 'lucide-react';
-import { categories } from '../data/categories';
-import { products } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { useLanguage } from '../context/LanguageContext';
 
 export function CategoryPage() {
+  const { products, categories } = useCatalog();
   const { slug } = useParams();
   const { language } = useLanguage();
   const [selectedSubcategory, setSelectedSubcategory] = useState('All');
@@ -24,13 +24,13 @@ export function CategoryPage() {
 
   // Find category details
   const currentCategory = useMemo(() => {
-    return categories.find((c) => c.slug === slug) || categories[1]; // fallback to dairy
-  }, [slug]);
+    return categories.find((c) => c.slug === slug) || null; // fallback to dairy
+  }, [slug, categories]);
 
   // All products for this category (unfiltered, used for showcase & meta stats)
   const allCategoryProducts = useMemo(() => {
     return products.filter((p) => p.category === slug || (slug === 'for-you' && p));
-  }, [slug]);
+  }, [slug, products]);
 
   const showcaseProduct1 = allCategoryProducts[0];
   const showcaseProduct2 = allCategoryProducts[1] || allCategoryProducts[0];
@@ -74,7 +74,9 @@ export function CategoryPage() {
     }
 
     return list;
-  }, [slug, selectedSubcategory, sortBy]);
+  }, [slug, selectedSubcategory, sortBy, products]);
+
+  if (!currentCategory) return <div className="p-12">Category not found. <Link to="/">Back to store</Link></div>;
 
   const displayName =
     language === 'bn'

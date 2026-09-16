@@ -1,3 +1,7 @@
+import { api } from '../../lib/api';
+import { useAdminData } from '../../context/AdminDataContext';
+import { useCatalog } from '../../context/CatalogContext';
+import { PasswordForm } from '../../components/account/PasswordForm';
 import React, { useState } from 'react';
 import {
   Store,
@@ -12,23 +16,16 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useLanguage, availableLanguages } from '../../context/LanguageContext';
-import { storeSettings as initialSettings } from '../data/adminMockData';
 
 const STORAGE_KEY = 'alkabeer_admin_store_settings';
 
 export function AdminSettings() {
   const { t, language, setLanguage } = useLanguage();
 
-  const [settings, setSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return initialSettings;
-  });
-
+  const { settings: initialSettings, refreshAdmin } = useAdminData();
+  const { refreshCatalog } = useCatalog();
+  const [settings, setSettings] = useState(initialSettings);
+  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [toastMessage, setToastMessage] = useState('');
 
@@ -37,14 +34,9 @@ export function AdminSettings() {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch {
-      // ignore
-    }
-    showToast(t('admin.settings.saveSuccess'));
+  const handleSave = async e => {
+    e.preventDefault(); if(saving) return; setSaving(true);
+    try { const saved = await api('/admin/settings', { method:'PUT', body:settings }); setSettings(saved); await Promise.all([refreshAdmin(), refreshCatalog()]); showToast('Settings saved.'); } catch(e) { showToast(e.message); } finally { setSaving(false); }
   };
 
   const tabs = [
@@ -101,6 +93,13 @@ export function AdminSettings() {
 
       {/* Settings Form Container */}
       <form onSubmit={handleSave} className="rounded-2xl bg-surface border border-border p-6 shadow-subtle space-y-6">
+        {activeTab === 'general' && <section className="p-5 rounded-2xl border border-border bg-surface space-y-4">
+          <h3 className="font-bold">Delivery and checkout</h3>
+          <label className="block text-sm">Delivery fee (₹)<input aria-label="Delivery fee" type="number" min="0" step="0.01" value={settings.deliveryFee} onChange={e => setSettings({...settings,deliveryFee:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
+          <label className="block text-sm">Minimum order (₹)<input type="number" min="0" value={settings.minimumOrder} onChange={e => setSettings({...settings,minimumOrder:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
+          <label className="block text-sm">Service pincodes (comma separated)<input value={settings.servicePincodes.join(',')} onChange={e => setSettings({...settings,servicePincodes:e.target.value.split(',').map(p => p.trim())})} className="block border rounded-lg p-2 mt-1 w-full"/></label>
+          <label className="flex gap-2 text-sm"><input type="checkbox" checked={settings.acceptingOrders} onChange={e => setSettings({...settings,acceptingOrders:e.target.checked})}/>Accept new orders</label>
+        </section>}
         {/* GENERAL TAB */}
         {activeTab === 'general' && (
           <div className="space-y-4 animate-fade-in">
@@ -356,7 +355,7 @@ export function AdminSettings() {
         {/* Form Footer Save Button */}
         <div className="pt-4 border-t border-border flex items-center justify-end">
           <button
-            type="submit"
+            type="submit" disabled={saving}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
           >
             <Save className="w-4 h-4" />
@@ -364,6 +363,7 @@ export function AdminSettings() {
           </button>
         </div>
       </form>
+      {activeTab === 'account' && <PasswordForm />}
     </div>
   );
 }

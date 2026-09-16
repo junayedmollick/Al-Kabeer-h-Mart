@@ -1,0 +1,11 @@
+import { backup } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { openDatabase } from './db.js';
+const directory = resolve(process.argv[2] || 'data/backups');
+mkdirSync(directory, { recursive: true });
+const db = openDatabase();
+const destination = resolve(directory, 'store-' + new Date().toISOString().replace(/[:.]/g, '-') + '.sqlite');
+await backup(db, destination);
+db.close();
+console.log('Database backup saved to ' + destination);
