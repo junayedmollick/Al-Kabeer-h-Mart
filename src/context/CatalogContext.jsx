@@ -1,11 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { categories as defaultCategories } from '../data/categories';
+import { products as defaultProducts } from '../data/products';
+import { storeSettings as defaultStoreSettings } from '../admin/data/adminMockData';
+
+const initialSettings = {
+  ...defaultStoreSettings,
+  deliveryFee: 10,
+  minimumOrder: 0,
+  servicePincodes: ['712701'],
+  acceptingOrders: true,
+  checkoutPaymentMode: 'online',
+  onlinePaymentsEnabled: false,
+  paymentTestMode: false,
+};
+
+const initialCatalog = {
+  categories: defaultCategories,
+  products: defaultProducts,
+  settings: initialSettings,
+  storeSettings: initialSettings,
+};
 
 const Context = createContext();
 
 export function CatalogProvider({ children }) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(initialCatalog);
   const [error, setError] = useState('');
 
   const refreshCatalog = useCallback(async () => {
@@ -50,29 +71,45 @@ export function CatalogProvider({ children }) {
               revision: p.revision,
             }));
 
-            const storeSettings = settingsRes.data ? {
-              deliveryFee: Number(settingsRes.data.delivery_fee) || 10,
-              minimumOrder: Number(settingsRes.data.minimum_order) || 0,
-              servicePincodes: settingsRes.data.service_pincodes || ['712701'],
-              acceptingOrders: settingsRes.data.accepting_orders !== false,
-              ...(settingsRes.data.store_details || {}),
-            } : null;
+            const storeSettings = {
+              ...initialSettings,
+              deliveryFee: Number(settingsRes.data?.delivery_fee) || 10,
+              minimumOrder: Number(settingsRes.data?.minimum_order) || 0,
+              servicePincodes: settingsRes.data?.service_pincodes || ['712701'],
+              acceptingOrders: settingsRes.data?.accepting_orders !== false,
+              ...(settingsRes.data?.store_details || {}),
+            };
 
-            setData({ categories, products, storeSettings });
+            setData({ categories, products, settings: storeSettings, storeSettings });
             setError('');
             return;
           }
         } catch {
-          // Fall back gracefully to backend API below
+          // Fall back gracefully to backend API or default catalog below
         }
       }
 
       // 2. Standard backend API fetch
-      const catalogData = await api('/catalog');
-      setData(catalogData);
-      setError('');
+      try {
+        const catalogData = await api('/catalog');
+        if (catalogData && catalogData.products && catalogData.categories) {
+          const settings = {
+            ...initialSettings,
+            ...(catalogData.settings || {}),
+          };
+          setData({
+            ...catalogData,
+            settings,
+            storeSettings: settings,
+          });
+          setError('');
+          return;
+        }
+      } catch {
+        // Fall back gracefully to built-in catalog data
+      }
     } catch (e) {
-      setError(e.message);
+      console.warn('Catalog refresh notice:', e.message);
     }
   }, []);
 
@@ -103,6 +140,8 @@ export function CatalogProvider({ children }) {
     <Context.Provider
       value={{
         ...data,
+        settings: data.settings || initialSettings,
+        storeSettings: data.storeSettings || data.settings || initialSettings,
         shopCategories: (data.categories || []).filter(c => c.slug !== 'for-you'),
         refreshCatalog,
       }}

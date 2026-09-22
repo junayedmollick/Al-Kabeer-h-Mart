@@ -74,7 +74,25 @@ export function Checkout() {
   }, [checkoutItems, orderSuccess, isAuthenticated, isSubmitting, navigate]);
 
   const quoteInput = JSON.stringify({ items: checkoutItems.map(({id,quantity}) => ({id,quantity})), couponCode });
-  useEffect(() => { let active = true; setQuote(null); setQuoteError(''); if (isAuthenticated && checkoutItems.length && !orderSuccess) api('/orders/quote', { method: 'POST', body: JSON.parse(quoteInput) }).then(q => { if(active) setQuote(q); }).catch(e => { if(active) setQuoteError(e.message); }); return () => { active = false; }; }, [quoteInput, isAuthenticated, orderSuccess]);
+  useEffect(() => {
+    let active = true;
+    setQuote(null);
+    setQuoteError('');
+    if (isAuthenticated && checkoutItems.length && !orderSuccess) {
+      api('/orders/quote', { method: 'POST', body: JSON.parse(quoteInput) })
+        .then(q => { if (active) setQuote(q); })
+        .catch(e => {
+          if (active) {
+            const subtotal = checkoutItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (item.quantity || 1), 0);
+            const deliveryFee = Number(settings?.deliveryFee) || 10;
+            const discount = 0;
+            const total = Math.max(0, subtotal + deliveryFee - discount);
+            setQuote({ subtotal, deliveryFee, discount, total });
+          }
+        });
+    }
+    return () => { active = false; };
+  }, [quoteInput, isAuthenticated, orderSuccess, checkoutItems, settings?.deliveryFee]);
   const itemsTotal = quote?.subtotal ?? (isDirect ? (state.product?.price || 0) * (state.quantity || 1) : cartSubtotal);
   const currentDeliveryFee = quote?.deliveryFee ?? settings.deliveryFee;
   const finalTotal = quote?.total ?? itemsTotal + currentDeliveryFee;

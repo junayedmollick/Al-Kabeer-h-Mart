@@ -23,6 +23,15 @@ export function OrderConfirmation() {
           setError('');
         }
       } catch (e) {
+        try {
+          const stored = JSON.parse(localStorage.getItem('alkabeer_orders') || '[]');
+          const localOrder = stored.find(o => String(o.id) === String(orderId));
+          if (localOrder && active) {
+            setOrder(localOrder);
+            setError('');
+            return;
+          }
+        } catch {}
         if (active) setError(e.message);
       }
     };
