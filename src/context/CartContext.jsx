@@ -31,7 +31,7 @@ export function CartProvider({ children }) {
 
   const addToCart = (item) => {
     const product = products.find(p => String(p.id) === String(item.id));
-    if (!product || product.stock <= 0) return;
+    if (!product || product.stock <= 0 || product.pricePending || product.price <= 0 || product.archived) return;
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
@@ -68,7 +68,7 @@ export function CartProvider({ children }) {
     return item ? item.quantity : 0;
   };
 
-  useEffect(() => { setCart(prev => prev.map(item => { const p = products.find(p => String(p.id) === String(item.id)); return p ? { ...item, ...p } : { ...item, stock: 0 }; })); }, [products]);
+  useEffect(() => { setCart(prev => prev.filter(item=>products.some(p=>String(p.id)===String(item.id))).map(item => { const p = products.find(p => String(p.id) === String(item.id)); return p ? { ...item, ...p } : { ...item, stock: 0 }; })); }, [products]);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = cart.length === 0 ? 0 : settings.deliveryFee;

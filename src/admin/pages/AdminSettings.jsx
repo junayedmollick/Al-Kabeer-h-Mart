@@ -23,7 +23,7 @@ export function AdminSettings() {
   const { t, language, setLanguage } = useLanguage();
 
   const { settings: initialSettings, refreshAdmin } = useAdminData();
-  const { refreshCatalog } = useCatalog();
+  const { refreshCatalog, settings: paymentConfig } = useCatalog();
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
@@ -95,6 +95,7 @@ export function AdminSettings() {
       <form onSubmit={handleSave} className="rounded-2xl bg-surface border border-border p-6 shadow-subtle space-y-6">
         {activeTab === 'general' && <section className="p-5 rounded-2xl border border-border bg-surface space-y-4">
           <h3 className="font-bold">Delivery and checkout</h3>
+          <div className="p-3 bg-surface-soft rounded-xl text-sm"><strong>Checkout: {paymentConfig.checkoutPaymentMode === 'preference' ? 'Payment selection only — no website payments' : 'Online payments'}</strong><p className="text-text-secondary mt-1">{paymentConfig.checkoutPaymentMode === 'preference' ? 'Customers can choose cash, UPI or card. Their choice is saved with the order and sent to WhatsApp. Record payments received outside the website from the order receipt.' : 'UPI and cards require Razorpay keys and a payment webhook. See the payment setup section in the project README.'}</p></div>
           <label className="block text-sm">Delivery fee (₹)<input aria-label="Delivery fee" type="number" min="0" step="0.01" value={settings.deliveryFee} onChange={e => setSettings({...settings,deliveryFee:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
           <label className="block text-sm">Minimum order (₹)<input type="number" min="0" value={settings.minimumOrder} onChange={e => setSettings({...settings,minimumOrder:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
           <label className="block text-sm">Service pincodes (comma separated)<input value={settings.servicePincodes.join(',')} onChange={e => setSettings({...settings,servicePincodes:e.target.value.split(',').map(p => p.trim())})} className="block border rounded-lg p-2 mt-1 w-full"/></label>

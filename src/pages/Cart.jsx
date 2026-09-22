@@ -72,7 +72,7 @@ export function Cart({ onOpenVip }) {
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-text-secondary font-medium mb-6">
         <Link to="/" className="hover:text-primary transition-colors">
-          Home
+          {t('nav.home')}
         </Link>
         <span className="text-text-muted">/</span>
         <span className="text-primary font-bold">{t('cart.title')}</span>
@@ -84,7 +84,7 @@ export function Cart({ onOpenVip }) {
             {t('cart.title')}
           </h1>
           <p className="text-xs text-text-secondary mt-1">
-            Review your groceries, pack quantities, and order bill
+            {t('cart.reviewDesc') || 'Review your groceries, pack quantities, and order bill'}
           </p>
         </div>
 

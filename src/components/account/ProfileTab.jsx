@@ -1,3 +1,4 @@
+import { ProfilePhoto } from './ProfilePhoto';
 import React, { useState } from 'react';
 import { User, Phone, Mail, MapPin, Edit2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
@@ -40,6 +41,7 @@ export function ProfileTab({ profile, setProfile }) {
         )}
       </div>
 
+      <ProfilePhoto />
       {isEditing ? (
         <form onSubmit={handleSaveProfile} className="space-y-4 max-w-lg">
           <div>

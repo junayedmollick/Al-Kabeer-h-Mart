@@ -34,7 +34,7 @@ export function AdminSidebar({
 
   const handleLogout = async () => {
     try { await logout(); } catch(e) { alert(e.message); return; }
-    navigate('/');
+    navigate('/admin/login');
   };
 
   // Count active / pending orders

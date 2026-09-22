@@ -212,7 +212,52 @@ export function AdminDashboard() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Cards View (< sm screens) */}
+          <div className="sm:hidden p-4 space-y-3">
+            {orders.slice(0, 5).map((order) => {
+              const itemCount = order.items ? order.items.length : 1;
+              return (
+                <div
+                  key={order.id}
+                  className="p-3.5 rounded-xl bg-surface-soft border border-border shadow-subtle flex flex-col gap-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-xs text-primary px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20">
+                      {order.id}
+                    </span>
+                    <StatusBadge status={order.status} size="sm" />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-text-primary">
+                        {order.customerName || 'Customer'}
+                      </p>
+                      <p className="text-[10px] text-text-muted">{order.date}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-text-primary">₹{order.total}</p>
+                      <p className="text-[10px] text-text-muted">{itemCount} items</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-2 border-t border-border/60">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrder(order)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface hover:bg-primary/10 text-text-secondary hover:text-primary text-[11px] font-bold border border-border transition-colors cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Receipt</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (>= sm screens) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-sm min-w-[580px]">
               <thead>
                 <tr className="border-b border-border bg-surface-soft/60 text-[11px] font-bold uppercase tracking-wider text-text-secondary">

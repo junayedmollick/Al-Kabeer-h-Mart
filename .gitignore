@@ -7,3 +7,6 @@
 data/
 *.sqlite*
 *.log
+
+# Dependencies
+node_modules/

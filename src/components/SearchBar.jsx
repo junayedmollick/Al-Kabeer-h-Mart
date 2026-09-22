@@ -1,11 +1,9 @@
 import { useCatalog } from '../context/CatalogContext';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, TrendingUp, Clock, ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
-
-const trendingSearches = ['Amul Milk', 'Whole Wheat Bread', 'Mustard Oil', 'Aashirvaad Atta', 'Lays Chips', 'Eggs'];
 
 export function SearchBar({ searchQuery, onSearchChange, isMobile = false }) {
   const { products } = useCatalog();
@@ -14,6 +12,20 @@ export function SearchBar({ searchQuery, onSearchChange, isMobile = false }) {
   const { addToCart } = useCart();
   const { t } = useLanguage();
   const navigate = useNavigate();
+
+  const trendingSearches = useMemo(() => {
+    if (!products || products.length === 0) {
+      return ['Milk', 'Bread', 'Mustard Oil', 'Atta', 'Chips', 'Eggs'];
+    }
+    const highlighted = products.filter(
+      (p) => (p.stock ?? 20) > 0 && (p.tag === 'Best Seller' || p.tag === 'Popular' || p.tag === 'Essential')
+    );
+    const pool = highlighted.length >= 6 ? highlighted : products.filter((p) => (p.stock ?? 20) > 0);
+    const names = (pool.length > 0 ? pool : products).slice(0, 12).map((p) => {
+      return p.name.split(' - ')[0].split(' (')[0].trim();
+    });
+    return Array.from(new Set(names)).slice(0, 6);
+  }, [products]);
 
   // Close suggestions on click outside
   useEffect(() => {

@@ -26,7 +26,7 @@ export function PromoCards({ onScrollToSection }) {
       cta: t('promo.refreshCta'),
       icon: Droplets,
       bgGradient: 'from-teal-600 via-emerald-600 to-emerald-700',
-      targetRoute: '/category/quick-delivery',
+      targetRoute: '/category/beverages',
     },
     {
       id: 'household',
@@ -36,7 +36,7 @@ export function PromoCards({ onScrollToSection }) {
       cta: t('promo.householdCta'),
       icon: Sparkles,
       bgGradient: 'from-amber-500 via-amber-600 to-amber-700',
-      targetRoute: '/category/home',
+      targetRoute: '/category/home-care',
     },
   ];
 

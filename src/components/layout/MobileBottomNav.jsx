@@ -11,7 +11,7 @@ export function MobileBottomNav() {
 
   const navItems = [
     { key: 'home', label: t('nav.home'), path: '/', icon: Home },
-    { key: 'categories', label: t('nav.categories'), path: '/category/dairy-eggs', icon: Grid },
+    { key: 'categories', label: t('nav.categories'), path: '/category/snacks', icon: Grid },
     { key: 'orders', label: t('nav.orders'), path: '/account?tab=orders', icon: ShoppingBag },
     { key: 'cart', label: t('nav.cart'), path: '/cart', icon: ShoppingCart, badge: itemCount },
     { key: 'account', label: t('nav.account'), path: '/account', icon: User },

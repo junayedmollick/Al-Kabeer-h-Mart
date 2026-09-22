@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { OrderPaymentRecord } from '../components/OrderPaymentRecord';
 import {
   ShoppingBag,
   Search,
@@ -26,7 +27,8 @@ export function AdminOrders() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [viewingOrder, setViewingOrder] = useState(null);
+  const [viewingSnapshot, setViewingOrder] = useState(null);
+  const viewingOrder = orders.find(order => order.id === viewingSnapshot?.id) || viewingSnapshot;
   const [toastMessage, setToastMessage] = useState('');
 
   const showToast = (msg) => {
@@ -42,10 +44,11 @@ export function AdminOrders() {
   ];
 
   const handleStatusChange = async (orderId, newStatus) => {
-    try { await updateOrderStatus(orderId, newStatus); } catch(e) { showToast(e.message); return; }
+    let updated;
+    try { updated = await updateOrderStatus(orderId, newStatus); } catch(e) { showToast(e.message); return; }
     showToast(`Order #${orderId} status changed to ${newStatus}`);
     if (viewingOrder && viewingOrder.id === orderId) {
-      setViewingOrder((prev) => ({ ...prev, status: newStatus }));
+      setViewingOrder(updated);
     }
   };
 
@@ -374,6 +377,15 @@ export function AdminOrders() {
           }
         >
           <div className="space-y-4 text-xs">
+            <section className="p-4 rounded-xl border border-border space-y-2" aria-label="Customer contact">
+              <h3 className="font-bold text-sm">{viewingOrder.customerName || 'Customer'}</h3>
+              <a className="text-primary font-semibold" href={'tel:' + viewingOrder.customerPhone}>{viewingOrder.customerPhone}</a>
+              <p>Pincode: {viewingOrder.pincode}</p>
+              <p>{viewingOrder.paymentMethod} · <strong>{viewingOrder.paymentStatus}</strong></p>
+              {viewingOrder.gatewayPaymentId && <p className="break-all">Razorpay payment: {viewingOrder.gatewayPaymentId}</p>}
+              {viewingOrder.paymentStatus === 'Refund required' && viewingOrder.paymentMode !== 'preference' && <p className="text-red-700 font-semibold">Issue the refund in Razorpay. Its verified webhook will update this payment status.</p>}
+              <OrderPaymentRecord key={viewingOrder.id} order={viewingOrder} onUpdate={setViewingOrder}/>
+            </section>
             {/* Status & Total Header Card */}
             <div className="p-4 rounded-2xl bg-surface-soft border border-border flex items-center justify-between">
               <div>
@@ -413,7 +425,7 @@ export function AdminOrders() {
                   <span>Assigned Express Rider</span>
                 </div>
                 <p className="text-text-primary font-semibold">
-                  {viewingOrder.rider || 'Express Attendant Dispatch'}
+                  {viewingOrder.rider || 'Not assigned'}
                 </p>
                 {viewingOrder.riderPhone && (
                   <p className="text-text-muted text-[10px] flex items-center gap-1">
@@ -480,6 +492,7 @@ export function AdminOrders() {
                   {viewingOrder.deliveryFee === 0 ? 'FREE (0₹)' : `₹${viewingOrder.deliveryFee}`}
                 </span>
               </div>
+              {(viewingOrder.discount || 0) > 0 && <div className="flex items-center justify-between text-primary"><span>Coupon discount ({viewingOrder.couponCode}):</span><span>−₹{viewingOrder.discount}</span></div>}
               <div className="pt-2 border-t border-border flex items-center justify-between font-black text-text-primary text-sm">
                 <span>Grand Total:</span>
                 <span className="text-primary font-black">₹{viewingOrder.total}</span>

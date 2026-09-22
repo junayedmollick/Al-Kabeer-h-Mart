@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { openDatabase, get, put } from '../db.js';
 import { createApp } from '../app.js';
 import { createUser } from '../auth.js';
 
 test('store API: authorization, persistence, catalog, checkout and fulfilment', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'akm-api-')), filename = join(directory, 'test.sqlite');
-  let db = openDatabase(filename), server = createApp(db);
+  let db = openDatabase(filename), server = createApp(db,{paymentMode:'online'});
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   const request = async (path, {method = 'GET', body, cookie, headers = {}} = {}) => {
@@ -51,6 +51,21 @@ test('store API: authorization, persistence, catalog, checkout and fulfilment', 
       assert.equal((await request('/catalog')).data.products.find(p=>p.id===product.id).stock,10);
       assert.equal((await request('/admin/categories/dairy-eggs',{method:'DELETE',cookie:admin})).status,409);
     });
+    await t.test('category CRUD, validation and deletion preserve catalog consistency', async () => {
+      const category = {slug:'test-category',name:'Test Category',subcategories:['All'],image:''};
+      const created = await request('/admin/categories',{method:'POST',cookie:admin,body:category});
+      assert.equal(created.status,201);
+      const saved = await request('/admin/categories/test-category',{method:'PUT',cookie:admin,body:{...created.data,name:'Updated Test Category'}});
+      assert.equal(saved.status,200);
+      assert.equal((await request('/catalog')).data.categories.find(c=>c.slug==='test-category').name,'Updated Test Category');
+      assert.equal((await request('/admin/categories/test-category',{method:'PUT',cookie:admin,body:{...created.data,name:'Stale overwrite'}})).status,409);
+      assert.equal((await request('/admin/categories/test-category',{method:'DELETE',cookie:admin})).status,200);
+    });
+    await t.test('malformed items and addresses return validation errors', async () => {
+      assert.equal((await request('/orders/quote',{method:'POST',cookie:customer,body:{items:[null]}})).status,400);
+      assert.equal((await request('/account/addresses',{method:'PUT',cookie:customer,body:{items:[null]}})).status,400);
+      assert.equal((await request('/admin/products',{method:'POST',cookie:admin,body:{name:'Unsafe image',price:1,stock:1,category:'dairy-eggs',image:'javascript:alert(1)'}})).status,400);
+    });
     await t.test('quote uses database prices and delivery fee, not client totals',async () => {
       const r=await request('/orders/quote',{method:'POST',cookie:customer,body:{items:orderBody().items,total:0.01,deliveryFee:0,isVip:true}});
       assert.equal(r.status,200); assert.equal(r.data.total,110); assert.equal(r.data.items[0].price,50);
@@ -59,7 +74,8 @@ test('store API: authorization, persistence, catalog, checkout and fulfilment', 
       for(const quantity of [-1,0,0.5,1001]) assert.equal((await request('/orders/quote',{method:'POST',cookie:customer,body:{items:[{id:product.id,quantity}]}})).status,400);
       assert.equal((await request('/orders/quote',{method:'POST',cookie:customer,body:{items:[{id:product.id,quantity:6},{id:product.id,quantity:6}]}})).status,409);
       const post=body=>request('/orders',{method:'POST',cookie:customer,headers:{'Idempotency-Key':key},body});
-      assert.equal((await post({...orderBody(),paymentMethod:'card'})).status,400);
+      assert.equal((await post({...orderBody(),paymentMethod:'crypto'})).status,400);
+      assert.equal((await post({...orderBody(),paymentMethod:'card'})).status,503);
       assert.equal((await post({...orderBody(),pincode:'999999'})).status,400);
       assert.equal((await post({...orderBody(),expectedTotal:0.01})).status,409);
       assert.equal(get(db,'products',product.id).stock,10);
@@ -72,6 +88,21 @@ test('store API: authorization, persistence, catalog, checkout and fulfilment', 
       assert.equal((await request('/orders',{cookie:customer})).data.length,1);
       assert.equal((await request('/orders',{cookie:other})).data.length,0);
       assert.equal((await request('/orders/'+order.id+'/cancel',{method:'POST',cookie:other,body:{}})).status,404);
+    });
+    await t.test('returning from WhatsApp can load a saved order without duplicating it or exposing another account', async () => {
+      const before=db.prepare('SELECT count(*) AS n FROM orders').get().n;
+      const saved=await request('/orders/'+order.id,{cookie:customer});
+      assert.equal(saved.status,200);assert.equal(saved.data.id,order.id);assert.equal(saved.data.total,110);
+      assert.equal((await request('/orders/'+order.id,{cookie:other})).status,404);
+      assert.equal((await request('/orders/'+order.id)).status,401);
+      assert.equal(db.prepare('SELECT count(*) AS n FROM orders').get().n,before);
+    });
+    await t.test('stale admin inventory edits cannot undo stock reserved by an order', async () => {
+      const stale = await request('/admin/products/'+product.id,{method:'PUT',cookie:admin,body:{...product,name:'Stale edit'}});
+      assert.equal(stale.status,409); assert.equal(get(db,'products',product.id).stock,8);
+      const current = get(db,'products',product.id);
+      const saved = await request('/admin/products/'+product.id,{method:'PUT',cookie:admin,body:{...current,tag:'Verified'}});
+      assert.equal(saved.status,200); assert.equal(saved.data.stock,8); assert.notEqual(saved.data.revision,current.revision);
     });
     await t.test('admin sees customer orders; fulfilment is one way and COD is collected on delivery',async () => {
       const data=(await request('/admin/data',{cookie:admin})).data; assert.equal(data.orders[0].id,order.id); assert.equal(data.customers.length,2);
@@ -117,6 +148,12 @@ test('store API: authorization, persistence, catalog, checkout and fulfilment', 
       const results=await Promise.all(['customer-last-unit','other-last-unit'].map((k,i)=>request('/orders',{method:'POST',cookie:i?other:customer,headers:{'Idempotency-Key':k},body})));
       assert.deepEqual(results.map(r=>r.status).sort(),[201,409]); assert.equal(get(db,'products',product.id).stock,0);
     });
+    await t.test('notification preferences are persistent and restricted to admins', async () => {
+      const preferences={read:[order.id],hidden:['stock-1']};
+      assert.equal((await request('/admin/notifications/preferences',{method:'PUT',cookie:customer,body:preferences})).status,403);
+      assert.equal((await request('/admin/notifications/preferences',{method:'PUT',cookie:admin,body:preferences})).status,200);
+      assert.deepEqual((await request('/admin/data',{cookie:admin})).data.notificationPreferences,preferences);
+    });
     await t.test('password changes invalidate existing sessions; logout clears access',async () => {
       const r=await request('/account/password',{method:'POST',cookie:customer,body:{currentPassword:'Customer-test-secret',newPassword:'New-customer-secret'}}); assert.equal(r.status,200);
       assert.equal((await request('/auth/me',{cookie:customer})).data.user,null); customer=r.cookie;
@@ -128,5 +165,5 @@ test('store API: authorization, persistence, catalog, checkout and fulfilment', 
       await new Promise(resolve=>server.close(resolve)); db.close(); db=openDatabase(filename);
       assert.equal(db.prepare('SELECT count(*) AS n FROM orders').get().n,count); assert.equal(get(db,'products',product.id).stock,0);
     });
-  } finally { if(server.listening) await new Promise(resolve=>server.close(resolve)); db.close(); rmSync(directory,{recursive:true,force:true}); }
+  } finally { if(server.listening) await new Promise(resolve=>server.close(resolve)); db.close(); const cleanup = resolve(directory); assert.equal(dirname(cleanup),resolve(tmpdir())); assert.ok(basename(cleanup).startsWith('akm-api-')); rmSync(cleanup,{recursive:true,force:true}); }
 });

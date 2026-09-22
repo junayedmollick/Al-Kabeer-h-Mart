@@ -25,7 +25,7 @@ export function CategoryGrid() {
         </div>
 
         <Link
-          to="/category/dairy-eggs"
+          to="/category/for-you"
           className="text-xs font-bold text-primary hover:text-primary-dark inline-flex items-center gap-1 hover:underline cursor-pointer shrink-0 whitespace-nowrap ml-2"
         >
           <span className="whitespace-nowrap">{t('sections.viewAll')}</span>
@@ -37,7 +37,11 @@ export function CategoryGrid() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
         {shopCategories.map((item) => {
           const displayName =
-            language === 'bn' && item.bengaliName ? item.bengaliName : item.name;
+            language === 'bn' && item.bengaliName
+              ? item.bengaliName
+              : language === 'hi' && item.hindiName
+              ? item.hindiName
+              : item.name;
 
           return (
             <Link

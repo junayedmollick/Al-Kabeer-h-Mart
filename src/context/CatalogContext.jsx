@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const Context = createContext();
 
@@ -9,8 +10,66 @@ export function CatalogProvider({ children }) {
 
   const refreshCatalog = useCallback(async () => {
     try {
-      const catalog = await api('/catalog');
-      setData(catalog);
+      // 1. Attempt to fetch from Supabase if configured and tables exist
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const [catRes, prodRes, settingsRes] = await Promise.all([
+            supabase.from('categories').select('*').eq('archived', false),
+            supabase.from('products').select('*').eq('archived', false),
+            supabase.from('store_settings').select('*').eq('id', 1).maybeSingle(),
+          ]);
+
+          if (!catRes.error && !prodRes.error && catRes.data && catRes.data.length > 0) {
+            const categories = catRes.data.map(c => ({
+              id: c.id,
+              slug: c.slug,
+              name: c.name,
+              bengaliName: c.bengali_name,
+              hindiName: c.hindi_name,
+              shortDesc: c.short_desc,
+              tagline: c.tagline,
+              image: c.image,
+              iconName: c.icon_name || 'ShoppingBag',
+              bannerGradient: c.banner_gradient,
+              subcategories: c.subcategories || [],
+            }));
+
+            const products = (prodRes.data || []).map(p => ({
+              id: p.id,
+              name: p.name,
+              slug: p.slug,
+              category: p.category,
+              price: Number(p.price) || 0,
+              oldPrice: p.old_price ? Number(p.old_price) : null,
+              stock: Number(p.stock) || 0,
+              weight: p.weight,
+              description: p.description,
+              images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
+              image: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null,
+              pricePending: Boolean(p.price_pending),
+              revision: p.revision,
+            }));
+
+            const storeSettings = settingsRes.data ? {
+              deliveryFee: Number(settingsRes.data.delivery_fee) || 10,
+              minimumOrder: Number(settingsRes.data.minimum_order) || 0,
+              servicePincodes: settingsRes.data.service_pincodes || ['712701'],
+              acceptingOrders: settingsRes.data.accepting_orders !== false,
+              ...(settingsRes.data.store_details || {}),
+            } : null;
+
+            setData({ categories, products, storeSettings });
+            setError('');
+            return;
+          }
+        } catch {
+          // Fall back gracefully to backend API below
+        }
+      }
+
+      // 2. Standard backend API fetch
+      const catalogData = await api('/catalog');
+      setData(catalogData);
       setError('');
     } catch (e) {
       setError(e.message);
@@ -19,7 +78,7 @@ export function CatalogProvider({ children }) {
 
   useEffect(() => {
     refreshCatalog();
-    const id = setInterval(refreshCatalog, 15000);
+    const id = setInterval(refreshCatalog, 20000);
     window.addEventListener('focus', refreshCatalog);
     return () => {
       clearInterval(id);
@@ -29,35 +88,28 @@ export function CatalogProvider({ children }) {
 
   if (!data) {
     return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center" role="status">
-        {error ? (
-          <div className="max-w-md p-6 bg-red-50 border border-red-200 rounded-2xl shadow-xs">
-            <div className="w-12 h-12 mx-auto mb-3 text-red-500 flex items-center justify-center rounded-full bg-red-100 font-bold text-xl">!</div>
-            <h2 className="text-base font-bold text-red-900 mb-1">Store Connection Issue</h2>
-            <p className="text-sm text-red-700 mb-4">{error}</p>
-            <button
-              className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white font-semibold text-sm rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
-              onClick={refreshCatalog}
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-medium text-text-muted">Loading store…</p>
-          </div>
+      <div className="p-12 text-center" role="status">
+        {error || 'Loading store…'}
+        {error && (
+          <button className="block mx-auto mt-4 text-primary font-bold" onClick={refreshCatalog}>
+            Retry
+          </button>
         )}
       </div>
     );
   }
 
   return (
-    <Context.Provider value={{ ...data, shopCategories: data.categories.filter(c => c.slug !== 'for-you'), refreshCatalog }}>
+    <Context.Provider
+      value={{
+        ...data,
+        shopCategories: (data.categories || []).filter(c => c.slug !== 'for-you'),
+        refreshCatalog,
+      }}
+    >
       {error && (
-        <div role="alert" className="p-2.5 bg-red-50 border-b border-red-200 text-xs sm:text-sm text-red-700 text-center flex items-center justify-center gap-2">
-          <span>{error}</span>
-          <button onClick={refreshCatalog} className="font-bold underline cursor-pointer">Retry</button>
+        <div role="alert" className="p-3 bg-red-50 text-red-700 text-center">
+          {error} <button onClick={refreshCatalog} className="font-bold underline ml-2">Retry</button>
         </div>
       )}
       {children}

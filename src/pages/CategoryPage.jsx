@@ -1,5 +1,5 @@
 import { useCatalog } from '../context/CatalogContext';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronRight,
@@ -18,12 +18,14 @@ import { useLanguage } from '../context/LanguageContext';
 export function CategoryPage() {
   const { products, categories } = useCatalog();
   const { slug } = useParams();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [selectedSubcategory, setSelectedSubcategory] = useState('All');
+  useEffect(()=>setSelectedSubcategory('All'),[slug]);
   const [sortBy, setSortBy] = useState('featured');
 
   // Find category details
   const currentCategory = useMemo(() => {
+    if (slug === 'for-you') return {name:'All products',bengaliName:'সমস্ত পণ্য',hindiName:'सभी उत्पाद',slug:'for-you',tagline:'Browse everything in your neighbourhood store.',bannerGradient:'from-emerald-700 to-teal-800',subcategories:[]};
     return categories.find((c) => c.slug === slug) || null; // fallback to dairy
   }, [slug, categories]);
 
@@ -36,9 +38,8 @@ export function CategoryPage() {
   const showcaseProduct2 = allCategoryProducts[1] || allCategoryProducts[0];
 
   const minPrice = useMemo(() => {
-    return allCategoryProducts.length > 0
-      ? Math.min(...allCategoryProducts.map((p) => p.price))
-      : null;
+    const priced = allCategoryProducts.filter(p=>!p.pricePending && p.price>0);
+    return priced.length ? Math.min(...priced.map(p=>p.price)) : null;
   }, [allCategoryProducts]);
 
   const maxDiscount = useMemo(() => {
@@ -62,9 +63,9 @@ export function CategoryPage() {
 
     // Apply sorting
     if (sortBy === 'price_asc') {
-      list = [...list].sort((a, b) => a.price - b.price);
+      list = [...list].sort((a, b) => (a.pricePending ? Infinity : a.price) - (b.pricePending ? Infinity : b.price));
     } else if (sortBy === 'price_desc') {
-      list = [...list].sort((a, b) => b.price - a.price);
+      list = [...list].sort((a, b) => (b.pricePending ? -Infinity : b.price) - (a.pricePending ? -Infinity : a.price));
     } else if (sortBy === 'discount') {
       list = [...list].sort((a, b) => {
         const discA = a.oldPrice ? a.oldPrice - a.price : 0;
@@ -76,7 +77,7 @@ export function CategoryPage() {
     return list;
   }, [slug, selectedSubcategory, sortBy, products]);
 
-  if (!currentCategory) return <div className="p-12">Category not found. <Link to="/">Back to store</Link></div>;
+  if (!currentCategory) return <div className="p-12">{t('productDetail.unavailable')}. <Link to="/">{t('productDetail.backToStore')}</Link></div>;
 
   const displayName =
     language === 'bn'
@@ -91,10 +92,10 @@ export function CategoryPage() {
       {/* 1. Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-xs text-text-secondary font-medium mb-4 flex-wrap">
         <Link to="/" className="hover:text-primary transition-colors">
-          Home
+          {t('nav.home')}
         </Link>
         <ChevronRight className="w-3 h-3 text-text-muted" />
-        <span className="text-text-muted">Categories</span>
+        <span className="text-text-muted">{t('nav.categories')}</span>
         <ChevronRight className="w-3 h-3 text-text-muted" />
         <span className="text-primary font-bold">{displayName}</span>
       </nav>
@@ -119,9 +120,9 @@ export function CategoryPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
               </span>
-              <span>AL KABEER H MART CATALOG</span>
+              <span>{t('categoryPage.catalogTitle')}</span>
               <span className="text-white/40">•</span>
-              <span className="text-white font-bold">{allCategoryProducts.length} Items</span>
+              <span className="text-white font-bold">{allCategoryProducts.length} {t('categoryPage.items')}</span>
             </div>
 
             {/* Main Category Heading */}
@@ -138,25 +139,25 @@ export function CategoryPage() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <div className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-white/20 shadow-2xs transition-all">
                 <Clock className="w-3.5 h-3.5 text-secondary shrink-0" />
-                <span>10–15 Min Fast Delivery</span>
+                <span>{t('categoryPage.fastDelivery')}</span>
               </div>
 
               {minPrice !== null && (
                 <div className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-white/20 shadow-2xs transition-all">
                   <Tag className="w-3.5 h-3.5 text-secondary shrink-0" />
-                  <span>Starting at ₹{minPrice}</span>
+                  <span>{t('categoryPage.startingAt')} ₹{minPrice}</span>
                 </div>
               )}
 
               {maxDiscount > 0 ? (
                 <div className="inline-flex items-center gap-1.5 bg-secondary text-gray-950 px-3 py-1.5 rounded-xl text-xs font-black shadow-xs">
                   <Zap className="w-3.5 h-3.5 fill-current shrink-0" />
-                  <span>Up to {maxDiscount}% OFF</span>
+                  <span>{t('categoryPage.upTo')} {maxDiscount}% {t('categoryPage.off')}</span>
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-white/20 shadow-2xs">
                   <Sparkles className="w-3.5 h-3.5 text-secondary shrink-0" />
-                  <span>100% Genuine Quality</span>
+                  <span>{t('categoryPage.genuineQuality')}</span>
                 </div>
               )}
             </div>
@@ -168,7 +169,7 @@ export function CategoryPage() {
               <div className="relative w-full max-w-sm flex items-center justify-center py-4">
                 
                 {/* Main Floating Product Card */}
-                <div className="relative z-20 bg-white text-gray-900 rounded-3xl p-4 shadow-2xl w-60 sm:w-64 transform -rotate-3 hover:rotate-0 transition-transform duration-300 border border-white/40 group/card">
+                <Link to={'/product/'+encodeURIComponent(showcaseProduct1.id)} className="relative z-20 bg-white text-gray-900 rounded-3xl p-4 shadow-2xl w-60 sm:w-64 transform -rotate-3 hover:rotate-0 transition-transform duration-300 border border-white/40 group/card">
                   <div className="relative w-full h-32 sm:h-36 rounded-2xl overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 mb-2.5 p-2 flex items-center justify-center border border-gray-100">
                     <img
                       src={showcaseProduct1.image}
@@ -177,7 +178,7 @@ export function CategoryPage() {
                       loading="lazy"
                     />
                     <span className="absolute top-2 left-2 bg-primary text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs">
-                      {showcaseProduct1.tag || 'Popular'}
+                      {showcaseProduct1.tag || t('categoryPage.popularBadge')}
                     </span>
                   </div>
                   <h4 className="font-bold text-xs sm:text-sm truncate">
@@ -188,14 +189,14 @@ export function CategoryPage() {
                       {showcaseProduct1.weight}
                     </span>
                     <span className="font-black text-primary text-sm sm:text-base">
-                      ₹{showcaseProduct1.price}
+                      {showcaseProduct1.pricePending ? t('categoryPage.priceComingSoon') : '₹'+showcaseProduct1.price}
                     </span>
                   </div>
-                </div>
+                </Link>
 
                 {/* Secondary Overlapping Card */}
                 {showcaseProduct2 && showcaseProduct2.id !== showcaseProduct1.id && (
-                  <div className="absolute z-10 -right-2 -bottom-2 bg-white/95 backdrop-blur-md text-gray-900 rounded-2xl p-3 shadow-xl w-48 sm:w-52 transform rotate-5 hover:rotate-0 transition-transform duration-300 border border-white/50 group/card2">
+                  <Link to={'/product/'+encodeURIComponent(showcaseProduct2.id)} className="absolute z-10 -right-2 -bottom-2 bg-white/95 backdrop-blur-md text-gray-900 rounded-2xl p-3 shadow-xl w-48 sm:w-52 transform rotate-5 hover:rotate-0 transition-transform duration-300 border border-white/50 group/card2">
                     <div className="w-full h-20 sm:h-24 rounded-xl overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 mb-1.5 p-1 flex items-center justify-center border border-gray-100">
                       <img
                         src={showcaseProduct2.image}
@@ -212,16 +213,16 @@ export function CategoryPage() {
                         {showcaseProduct2.weight}
                       </span>
                       <span className="font-black text-primary text-xs sm:text-sm">
-                        ₹{showcaseProduct2.price}
+                        {showcaseProduct2.pricePending ? t('categoryPage.priceComingSoon') : '₹'+showcaseProduct2.price}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 )}
 
                 {/* Fresh Hub Stock Floating Stamp */}
                 <div className="absolute top-0 right-2 z-30 bg-black/65 backdrop-blur-md text-white text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1.5 border border-white/20 shadow-md">
                   <Sparkles className="w-3 h-3 text-secondary" />
-                  <span>Bhagabatipur Hub</span>
+                  <span>{t('categoryPage.hubBadge')}</span>
                 </div>
 
               </div>
@@ -247,6 +248,7 @@ export function CategoryPage() {
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0">
           {currentCategory.subcategories.map((sub) => {
             const isSubActive = selectedSubcategory === sub;
+            const subLabel = sub === 'All' ? (language === 'bn' ? 'সব' : language === 'hi' ? 'सभी' : 'All') : sub;
             return (
               <button
                 key={sub}
@@ -258,7 +260,7 @@ export function CategoryPage() {
                     : 'bg-surface-soft hover:bg-primary-light hover:text-primary text-text-secondary border border-border/80'
                 }`}
               >
-                {sub}
+                {subLabel}
               </button>
             );
           })}
@@ -267,16 +269,16 @@ export function CategoryPage() {
         {/* Sort Functionality Dropdown */}
         <div className="flex items-center gap-2 self-end md:self-auto shrink-0 text-xs font-semibold text-text-secondary">
           <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
-          <span>Sort by:</span>
+          <span>{t('categoryPage.sortBy')}</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="bg-surface-soft border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-text-primary outline-none focus:border-primary cursor-pointer"
           >
-            <option value="featured">Featured / Popular</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-            <option value="discount">Biggest Discount</option>
+            <option value="featured">{t('categoryPage.sortFeatured')}</option>
+            <option value="price_asc">{t('categoryPage.sortPriceAsc')}</option>
+            <option value="price_desc">{t('categoryPage.sortPriceDesc')}</option>
+            <option value="discount">{t('categoryPage.sortDiscount')}</option>
           </select>
         </div>
       </div>
@@ -295,17 +297,17 @@ export function CategoryPage() {
             <ShoppingBag className="w-8 h-8 stroke-1" />
           </div>
           <h3 className="text-lg font-black text-text-primary mb-1">
-            No items found in "{selectedSubcategory}"
+            {t('categoryPage.noItemsIn')} "{selectedSubcategory}"
           </h3>
           <p className="text-xs text-text-secondary max-w-sm mx-auto mb-5">
-            Try switching to another subcategory or browsing the entire department.
+            {t('categoryPage.trySwitching')}
           </p>
           <button
             type="button"
             onClick={() => setSelectedSubcategory('All')}
             className="bg-primary hover:bg-primary-dark text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            Show All Items
+            {t('categoryPage.showAllItems')}
           </button>
         </div>
       )}
@@ -317,7 +319,7 @@ export function CategoryPage() {
           className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:text-primary-dark bg-surface-soft hover:bg-primary-light border border-border px-4 py-2 rounded-xl transition-all"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to All Categories</span>
+          <span>{t('categoryPage.backToAllCategories')}</span>
         </Link>
       </div>
 

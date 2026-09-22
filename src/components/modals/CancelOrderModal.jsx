@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { AlertTriangle, X, XCircle } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export function CancelOrderModal({ isOpen, onClose, onConfirm, order }) {
+  const { t } = useLanguage();
   // Lock background scroll when modal is active
   useEffect(() => {
     if (isOpen) {
@@ -45,7 +47,7 @@ export function CancelOrderModal({ isOpen, onClose, onConfirm, order }) {
             </div>
             <div>
               <h3 className="text-base font-black text-text-primary">
-                Cancel this order?
+                {t('cancelOrderModal.title') || 'Cancel this order?'}
               </h3>
               <span className="text-xs text-text-muted font-mono">
                 Order #{order.id}
@@ -65,19 +67,19 @@ export function CancelOrderModal({ isOpen, onClose, onConfirm, order }) {
 
         <div className="text-xs sm:text-sm text-text-secondary leading-relaxed space-y-2">
           <p>
-            Are you sure you want to cancel order <strong className="text-text-primary font-mono font-bold">#{order.id}</strong>?
+            {t('cancelOrderModal.confirmPrompt') || 'Are you sure you want to cancel order'} <strong className="text-text-primary font-mono font-bold">#{order.id}</strong>?
           </p>
           <p className="text-text-muted text-xs">
-            A cancellation notification will also be sent to our Bhagabatipur store on WhatsApp to halt dispatch immediately.
+            {t('cancelOrderModal.whatsappNotice') || 'A cancellation notification will also be sent to our Bhagabatipur store on WhatsApp to halt dispatch immediately.'}
           </p>
 
           <div className="p-3 bg-surface-soft rounded-2xl border border-border/80 text-xs">
             <div className="flex justify-between items-center text-text-secondary">
-              <span>Items in order:</span>
+              <span>{t('cancelOrderModal.itemsInOrder') || 'Items in order:'}</span>
               <span className="font-bold text-text-primary">{order.items?.length || 0} item(s)</span>
             </div>
             <div className="flex justify-between items-center text-text-secondary mt-1">
-              <span>Total value:</span>
+              <span>{t('cancelOrderModal.totalValue') || 'Total value:'}</span>
               <span className="font-bold text-text-primary">₹{order.total}</span>
             </div>
           </div>
@@ -89,7 +91,7 @@ export function CancelOrderModal({ isOpen, onClose, onConfirm, order }) {
             onClick={onClose}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border bg-surface hover:bg-surface-soft text-text-primary text-xs font-bold transition-colors cursor-pointer"
           >
-            Keep Order
+            {t('cancelOrderModal.keepOrder') || 'Keep Order'}
           </button>
 
           <button
@@ -101,7 +103,7 @@ export function CancelOrderModal({ isOpen, onClose, onConfirm, order }) {
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-danger hover:bg-red-700 text-white text-xs font-black transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
           >
             <XCircle className="w-3.5 h-3.5" />
-            <span>Yes, Cancel Order</span>
+            <span>{t('cancelOrderModal.confirmCancel') || 'Yes, Cancel Order'}</span>
           </button>
         </div>
 

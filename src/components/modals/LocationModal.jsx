@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, MapPin, Check, Search } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const presetLocations = [
   { id: '1', name: 'Bhagabatipur, Hooghly', time: '10–15 mins', tag: 'Primary Hub' },
@@ -9,6 +10,7 @@ const presetLocations = [
 ];
 
 export function LocationModal({ isOpen, onClose, selectedLocation, onSelectLocation }) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
 
   if (!isOpen) return null;
@@ -29,10 +31,10 @@ export function LocationModal({ isOpen, onClose, selectedLocation, onSelectLocat
             </div>
             <div>
               <h3 className="font-black text-base text-text-primary">
-                Choose Delivery Location
+                {t('locationModal.title') || 'Choose Delivery Location'}
               </h3>
               <p className="text-[11px] text-text-secondary">
-                Delivering in 10–15 minutes across Bhagabatipur & Hooghly
+                {t('locationModal.subtitle') || 'Delivering in 10–15 minutes across Bhagabatipur & Hooghly'}
               </p>
             </div>
           </div>
@@ -55,7 +57,7 @@ export function LocationModal({ isOpen, onClose, selectedLocation, onSelectLocat
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search delivery locality or street..."
+              placeholder={t('locationModal.searchPlaceholder') || 'Search delivery locality or street...'}
               className="w-full bg-surface-soft border border-border focus:border-primary rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-text-primary outline-none"
             />
           </div>
@@ -109,7 +111,7 @@ export function LocationModal({ isOpen, onClose, selectedLocation, onSelectLocat
 
         {/* Footer info */}
         <div className="p-4 bg-surface-soft border-t border-border text-center text-[11px] text-text-muted">
-          Currently serving Bhagabatipur, Sarkarpara More, Mollar Chawk & Chanditala.
+          {t('locationModal.footer') || 'Currently serving Bhagabatipur, Sarkarpara More, Mollar Chawk & Chanditala.'}
         </div>
 
       </div>

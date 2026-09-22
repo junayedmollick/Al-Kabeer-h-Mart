@@ -354,7 +354,7 @@ export function AdminCategories() {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="e.g. Dairy & Eggs"
+                placeholder="e.g. Snacks & Namkeen"
                 className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
               />
             </div>

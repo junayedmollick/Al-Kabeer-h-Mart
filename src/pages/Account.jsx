@@ -72,7 +72,7 @@ export function Account({ onOpenVip, defaultTab = 'profile' }) {
       {/* Top Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-text-secondary font-medium mb-6">
         <Link to="/" className="hover:text-primary transition-colors">
-          Home
+          {t('nav.home')}
         </Link>
         <ChevronRight className="w-3 h-3 text-text-muted" />
         <button
@@ -96,11 +96,11 @@ export function Account({ onOpenVip, defaultTab = 'profile' }) {
       <div className="lg:hidden bg-surface rounded-2xl p-3.5 border border-border shadow-2xs flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-primary text-white font-black text-base flex items-center justify-center shadow-2xs shrink-0">
-            {profile.name.charAt(0)}
+            {profile.avatarUrl ? <img src={profile.avatarUrl} alt="Your profile" className="w-full h-full object-cover rounded-full"/> : profile.name.charAt(0)}
           </div>
           <div className="min-w-0">
             <span className="text-[9px] font-black uppercase tracking-wider text-text-muted block">
-              Welcome back
+              {t('account.welcomeBack') || 'Welcome back'}
             </span>
             <div className="text-sm font-black text-text-primary truncate">
               {profile.name}
@@ -162,7 +162,7 @@ export function Account({ onOpenVip, defaultTab = 'profile' }) {
           {/* User Profile Summary Card */}
           <div className="bg-surface rounded-3xl p-5 border border-border shadow-subtle flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary text-white font-black text-xl flex items-center justify-center shadow-xs shrink-0">
-              {profile.name.charAt(0)}
+              {profile.avatarUrl ? <img src={profile.avatarUrl} alt="Your profile" className="w-full h-full object-cover rounded-full"/> : profile.name.charAt(0)}
             </div>
             <div className="min-w-0">
               <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">

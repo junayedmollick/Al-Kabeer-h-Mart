@@ -1,3 +1,6 @@
+import { payForOrder } from '../lib/payments';
+import { orderWhatsAppUrl } from '../lib/whatsapp';
+import { flushSync } from 'react-dom';
 import { api } from '../lib/api';
 import { useCatalog } from '../context/CatalogContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -26,6 +29,7 @@ import { PaymentOptions } from '../components/PaymentOptions';
 export function Checkout() {
   const { settings } = useCatalog();
   const [quote, setQuote] = useState(null), [quoteError, setQuoteError] = useState(''), [orderError, setOrderError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [couponCode, setCouponCode] = useState('');
   const requestKey = useRef(crypto.randomUUID());
   const location = useLocation();
@@ -64,10 +68,10 @@ export function Checkout() {
 
   // If no items in checkout and not in success view, redirect back
   useEffect(() => {
-    if (checkoutItems.length === 0 && !orderSuccess && isAuthenticated) {
+    if (checkoutItems.length === 0 && !orderSuccess && isAuthenticated && !isSubmitting) {
       navigate('/cart');
     }
-  }, [checkoutItems, orderSuccess, isAuthenticated, navigate]);
+  }, [checkoutItems, orderSuccess, isAuthenticated, isSubmitting, navigate]);
 
   const quoteInput = JSON.stringify({ items: checkoutItems.map(({id,quantity}) => ({id,quantity})), couponCode });
   useEffect(() => { let active = true; setQuote(null); setQuoteError(''); if (isAuthenticated && checkoutItems.length && !orderSuccess) api('/orders/quote', { method: 'POST', body: JSON.parse(quoteInput) }).then(q => { if(active) setQuote(q); }).catch(e => { if(active) setQuoteError(e.message); }); return () => { active = false; }; }, [quoteInput, isAuthenticated, orderSuccess]);
@@ -77,82 +81,37 @@ export function Checkout() {
   const handlePlaceOrder = async e => {
     e.preventDefault(); if (isSubmitting || !quote) return;
     setIsSubmitting(true); setOrderError('');
+    let saved = false;
     try {
-      const order = await addOrder({ ...JSON.parse(quoteInput), customerName: name, customerPhone: phone, deliveryAddress: address, pincode, paymentMethod: 'cod', expectedTotal: quote.total }, requestKey.current);
-      setOrderSuccess(order); if (!isDirect) clearCart();
-    } catch(e) { setOrderError(e.message); try { setQuote(await api('/orders/quote', { method:'POST', body: JSON.parse(quoteInput) })); } catch(q) { setQuote(null); setQuoteError(q.message); } }
-    finally { setIsSubmitting(false); }
+      let order = await addOrder({ ...JSON.parse(quoteInput), customerName: name, customerPhone: phone, deliveryAddress: address, pincode, paymentMethod, expectedTotal: quote.total }, requestKey.current);
+      saved = true;
+      if (order.paymentMode === 'online' && order.paymentCode !== 'cod') {
+        try { order = await payForOrder(order); }
+        catch(error) {
+          if (!isDirect) clearCart();
+          navigate('/order-confirmation/'+encodeURIComponent(order.id),{replace:true,state:{paymentError:error.message}});
+          return;
+        }
+      }
+      const whatsappUrl = orderWhatsAppUrl(order, settings.whatsapp, settings.storeName);
+      // Save a reloadable confirmation URL before leaving this tab for WhatsApp.
+      // Browser Back (or returning from the app) cannot re-submit the order.
+      flushSync(() => {
+        setOrderSuccess(order);
+        if (!isDirect) clearCart();
+        navigate('/order-confirmation/' + encodeURIComponent(order.id), {replace:true});
+      });
+      if (whatsappUrl) window.location.assign(whatsappUrl);
+    } catch(e) {
+      if (saved) return;
+      setOrderError(e.message);
+      try { setQuote(await api('/orders/quote', {method:'POST',body:JSON.parse(quoteInput)})); }
+      catch(q) { setQuote(null); setQuoteError(q.message); }
+    } finally { setIsSubmitting(false); }
   };
 
   if (!isAuthenticated) {
     return null;
-  }
-
-  // ORDER SUCCESS SCREEN
-  if (orderSuccess) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-12 sm:py-16 animate-fade-in">
-        <div className="bg-surface rounded-3xl p-6 sm:p-10 border border-border shadow-xl text-center">
-          <div className="w-20 h-20 bg-primary-light text-primary rounded-full flex items-center justify-center mx-auto mb-5 shadow-xs">
-            <CheckCircle2 className="w-12 h-12 stroke-[2.5]" />
-          </div>
-
-          <span className="inline-flex items-center gap-1.5 bg-secondary/30 text-amber-900 text-xs font-black px-3 py-1 rounded-full mb-3">
-            <Clock className="w-3.5 h-3.5 text-amber-800" />
-            <span>{t('checkout.estDelivery')}: {t('checkout.estTime')}</span>
-          </span>
-
-          <h1 className="text-2xl sm:text-3xl font-black text-text-primary tracking-tight">
-            {t('checkout.orderSuccessTitle')}
-          </h1>
-          <p className="text-xs sm:text-sm text-text-secondary mt-1.5 max-w-md mx-auto leading-relaxed">
-            Your order is saved and visible to the store team. Track its status in My Orders. Pay cash when it arrives.
-          </p>
-
-          <div className="my-6 p-4 sm:p-5 bg-surface-soft rounded-2xl border border-border/80 text-left space-y-3">
-            <div className="flex justify-between items-center text-xs pb-2 border-b border-border">
-              <span className="text-text-muted">{t('checkout.orderId')}:</span>
-              <span className="font-black text-primary font-mono text-sm">{orderSuccess.id}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs pb-2 border-b border-border">
-              <span className="text-text-muted">{t('checkout.deliveryAddress')}:</span>
-              <span className="font-semibold text-text-primary text-right truncate max-w-[240px]">
-                {orderSuccess.deliveryAddress}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs pb-2 border-b border-border">
-              <span className="text-text-muted">Payment Preference:</span>
-              <span className="font-bold text-text-primary text-right truncate max-w-[200px]">
-                {orderSuccess.paymentMethod}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-sm pt-1">
-              <span className="font-black text-text-primary">{t('cart.grandTotal')}:</span>
-              <span className="font-black text-primary text-lg">₹{orderSuccess.total}</span>
-            </div>
-          </div>
-
-          {/* View orders and continue shopping */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-
-            <button
-              type="button"
-              onClick={() => navigate('/account?tab=orders')}
-              className="w-full sm:w-auto bg-primary hover:bg-primary-dark text-white font-black px-6 py-3.5 rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
-            >
-              {t('checkout.viewMyOrders')}
-            </button>
-
-            <Link
-              to="/"
-              className="w-full sm:w-auto bg-surface-soft hover:bg-surface border border-border text-text-primary font-bold px-5 py-3.5 rounded-xl text-xs sm:text-sm transition-all text-center"
-            >
-              {t('checkout.continueShopping')}
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -160,7 +119,7 @@ export function Checkout() {
       {/* Top Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-text-secondary font-medium mb-6">
         <Link to="/" className="hover:text-primary transition-colors">
-          Home
+          {t('nav.home')}
         </Link>
         <span className="text-text-muted">/</span>
         <Link to="/cart" className="hover:text-primary transition-colors">
@@ -206,7 +165,7 @@ export function Checkout() {
               </div>
               <span className="text-[11px] font-bold text-success flex items-center gap-1 shrink-0 whitespace-nowrap">
                 <Truck className="w-3.5 h-3.5 shrink-0" />
-                <span>10-15 Mins Delivery</span>
+                <span>{t('brand.deliveryTime') || '10-15 Mins Delivery'}</span>
               </span>
             </div>
 
@@ -287,12 +246,12 @@ export function Checkout() {
                 </h2>
               </div>
               <span className="text-[11px] text-text-muted font-medium">
-                Choose your preferred payment method
+                {t('checkout.paymentChoice') || 'Choose your preferred payment method'}
               </span>
             </div>
 
             {/* Reusable PaymentOptions Accordion Component */}
-            <PaymentOptions />
+            <PaymentOptions value={paymentMethod} onChange={setPaymentMethod} onlineEnabled={settings.onlinePaymentsEnabled} testMode={settings.paymentTestMode} paymentMode={settings.checkoutPaymentMode} />
           </div>
 
         </div>
@@ -369,17 +328,18 @@ export function Checkout() {
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80 flex items-start gap-2.5 text-[11px] text-emerald-900">
               <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold">Order securely with cash on delivery</span>
+                <span className="font-bold">Confirm your order on WhatsApp</span>
                 <p className="text-emerald-700 mt-0.5">
-                  The store will receive your order immediately. You can track progress from your account.
+                  For online payments, complete secure checkout first. WhatsApp will then open automatically with your order details. Tap Send there, then return here to view your confirmation.
                 </p>
               </div>
             </div>
 
+            <p className="text-xs text-text-secondary">Placing your order shares its details with WhatsApp. Read our <Link to="/privacy-policy" className="text-primary underline">{t('footer.privacyPolicy')}</Link> and <Link to="/terms-of-service" className="text-primary underline">{t('footer.termsOfService')}</Link>.</p>
             {/* Submit CTA Button */}
             <button
               type="submit"
-              disabled={isSubmitting || !quote}
+              disabled={isSubmitting || !quote || (paymentMethod!=='cod' && !settings.onlinePaymentsEnabled)}
               className="w-full bg-[#25D366] hover:bg-[#1ebc5c] active:scale-[0.99] text-white font-black py-4 px-5 rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-75 text-sm"
             >
               {isSubmitting ? (
@@ -387,7 +347,7 @@ export function Checkout() {
               ) : (
                 <>
                   <MessageCircle className="w-4 h-4" />
-                  <span>Place order • Pay on delivery</span>
+                  <span>{paymentMethod === 'cod' ? (t('checkout.placeOrderCod') || 'Place order & continue to WhatsApp') : (t('checkout.paySecurely') || 'Pay securely & continue to WhatsApp')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

@@ -65,10 +65,10 @@ export function Header({
             <button
               type="button"
               onClick={onOpenVip}
-              className="inline-flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-secondary to-secondary-dark hover:from-secondary-dark hover:to-secondary text-gray-950 font-black px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs shadow-2xs transition-all hover:scale-105 cursor-pointer border border-secondary/40 select-none shrink-0 whitespace-nowrap"
+              className="inline-flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-amber-300 via-amber-200 to-yellow-300 hover:from-amber-400 hover:via-amber-400 hover:to-amber-500 text-amber-950 font-black px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs shadow-2xs transition-all hover:scale-105 cursor-pointer border border-amber-400/40 select-none shrink-0 whitespace-nowrap"
               title="Open 999 VIP Membership"
             >
-              <Crown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-950 fill-gray-950 shrink-0" />
+              <Crown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-950 fill-amber-950 shrink-0" />
               <span className="tracking-wide whitespace-nowrap">{t('nav.vipBtn')}</span>
             </button>
 
@@ -84,7 +84,7 @@ export function Header({
             >
               {isAuthenticated && user?.name ? (
                 <span className="font-black text-xs text-primary">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user.avatarUrl ? <img src={user.avatarUrl} alt="Your profile" className="w-full h-full object-cover rounded-full"/> : user.name.charAt(0).toUpperCase()}
                 </span>
               ) : (
                 <User className="w-4 h-4" />

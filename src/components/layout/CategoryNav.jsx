@@ -42,8 +42,189 @@ const iconMap = {
   BookOpen
 };
 
+// Comprehensive category translations for complete multi-language support (en, bn, hi)
+const categoryTranslations = {
+  'for-you': {
+    en: 'For You',
+    bn: 'আপনার জন্য',
+    hi: 'आपके लिए',
+    descEn: 'Curated Deals & Recommendations',
+    descBn: 'নির্বাচিত অফার ও সুপারিশ',
+    descHi: 'खास आपके लिए चुनिंदा डील्स',
+  },
+  'snacks': {
+    en: 'Snacks & Namkeen',
+    bn: 'স্ন্যাক্স ও চিপস',
+    hi: 'स्नैक्स और नमकीन',
+    descEn: 'Chips, popcorn and savoury favourites',
+    descBn: 'চিপস, পপকর্ন ও মুখরোচক খাবার',
+    descHi: 'चिप्स, नमकीन और स्वादिष्ट स्नैक्स',
+  },
+  'biscuits-cakes': {
+    en: 'Biscuits & Cakes',
+    bn: 'বিস্কুট ও কেক',
+    hi: 'बिस्कुट और केक',
+    descEn: 'Tea-time biscuits, cookies, cakes and rusks',
+    descBn: 'চা-টাইম বিস্কুট, কুকিজ, কেক ও টোস্ট',
+    descHi: 'चाय के बिस्कुट, कुकीज़, केक और रस्क',
+  },
+  'beverages': {
+    en: 'Drinks & Beverages',
+    bn: 'পানীয় ও কোল্ড ড্রিঙ্কস',
+    hi: 'पेय और कोल्ड ड्रिंक्स',
+    descEn: 'Soft drinks, fruit drinks, lassi and coffee',
+    descBn: 'কোল্ড ড্রিঙ্কস, ফলের জুস, লাচ্ছি ও কফি',
+    descHi: 'कोल्ड ड्रिंक्स, फलों का जूस, लस्सी और कॉफी',
+  },
+  'spices-grocery': {
+    en: 'Spices & Grocery',
+    bn: 'মশলা ও মুদিখানা',
+    hi: 'मसाले और किराना',
+    descEn: 'Whole spices, masalas and pantry essentials',
+    descBn: 'গোটা মশলা, গুঁড়ো মশলা ও নিত্য মুদি সামগ্রী',
+    descHi: 'साबुत मसाले, पाउडर मसाले और रोजमर्रा का राशन',
+  },
+  'chocolates-sweets': {
+    en: 'Chocolates & Sweets',
+    bn: 'চকলেট ও মিষ্টি',
+    hi: 'चॉकलेट और मिठाई',
+    descEn: 'Chocolate, candy and traditional sweets',
+    descBn: 'চকলেট, ক্যান্ডি ও ঐতিহ্যবাহী মিষ্টি',
+    descHi: 'चॉकलेट, कैंडी और पारंपरिक मिठाइयां',
+  },
+  'stationery': {
+    en: 'Stationery & School',
+    bn: 'স্টেশনারি ও স্কুল সামগ্রী',
+    hi: 'स्टेशनरी और स्कूल',
+    descEn: 'Pens, art supplies and school essentials',
+    descBn: 'কলম, খাতা, আর্ট সামগ্রী ও স্কুলের সরঞ্জাম',
+    descHi: 'पेन, नोटबुक, आर्ट और स्कूल का सामान',
+  },
+  'home-care': {
+    en: 'Home & Laundry Care',
+    bn: 'হোম ও লন্ড্রি কেয়ার',
+    hi: 'होम और लॉन्ड्री केयर',
+    descEn: 'Laundry products and room fresheners',
+    descBn: 'কাপড় কাচার ডিটারজেন্ট ও রুম ফ্রেশনার',
+    descHi: 'डिटर्जेंट, सफाई और रूम फ्रेशनर',
+  },
+  'personal-care': {
+    en: 'Personal Care',
+    bn: 'পার্সোনাল কেয়ার',
+    hi: 'पर्सनल केयर',
+    descEn: 'Handwash, fragrances and everyday care',
+    descBn: 'হ্যান্ডওয়াশ, পারফিউম ও দৈনন্দিন যত্ন',
+    descHi: 'हैंडवॉश, साबुन और रोजमर्रा की देखभाल',
+  },
+  'food-grocery': {
+    en: 'Food & Grocery',
+    bn: 'মুদি ও খাদ্যসামগ্রী',
+    hi: 'किराना और राशन',
+    descEn: 'Atta, Rice & Dals',
+    descBn: 'আটা, চাল ও ডাল',
+    descHi: 'आटा, दाल और चावल',
+  },
+  'quick-delivery': {
+    en: 'Quick Delivery',
+    bn: 'দ্রুত ডেলিভারি',
+    hi: 'त्वरित डिलीवरी',
+    descEn: '10–15 Mins Express',
+    descBn: '১০–১৫ মিনিটে এক্সপ্রেস ডেলিভারি',
+    descHi: '১০–১৫ मिनट में एक्सप्रेस डिलीवरी',
+  },
+  'fashion': {
+    en: 'Fashion',
+    bn: 'পোশাক ও ফ্যাশন',
+    hi: 'फैशन व कपड़े',
+    descEn: 'Clothing and fashion accessories',
+    descBn: 'পোশাক ও ফ্যাশন সামগ্রী',
+    descHi: 'कपड़े और फैशन सामग्री',
+  },
+  'mobiles': {
+    en: 'Mobiles',
+    bn: 'মোবাইল ও এক্সেসরিজ',
+    hi: 'मोबाइल व गैजेट्स',
+    descEn: 'Mobile phones & tech accessories',
+    descBn: 'মোবাইল ফোন ও টেক এক্সেসরিজ',
+    descHi: 'मोबाइल फोन और टेक सामान',
+  },
+  'electronics': {
+    en: 'Electronics',
+    bn: 'ইলেকট্রনিক্স',
+    hi: 'इलेक्ट्रॉनिक्स',
+    descEn: 'Electronics & home devices',
+    descBn: 'ইলেকট্রনিক্স ও গৃহ সরঞ্জাম',
+    descHi: 'इलेक्ट्रॉनिक्स और उपकरण',
+  },
+  'beauty': {
+    en: 'Beauty',
+    bn: 'সৌন্দর্য ও প্রসাধন',
+    hi: 'ब्यूटी व केयर',
+    descEn: 'Beauty & cosmetics',
+    descBn: 'সৌন্দর্য ও প্রসাধন সামগ্রী',
+    descHi: 'ब्यूटी व कॉस्मेटिक्स',
+  },
+  'home': {
+    en: 'Home & Living',
+    bn: 'হোম ও ক্লিনিং',
+    hi: 'घर व सफाई',
+    descEn: 'Home essentials & cleaning',
+    descBn: 'গৃহস্থালি ও পরিষ্কার সামগ্রী',
+    descHi: 'घर का सामान और सफाई',
+  },
+  'appliances': {
+    en: 'Appliances',
+    bn: 'গৃহস্থালি যন্ত্রপাতি',
+    hi: 'होम अप्लायंसेज',
+    descEn: 'Home & kitchen appliances',
+    descBn: 'বাড়ি ও রান্নাঘরের যন্ত্রপাতি',
+    descHi: 'घर और रसोई के उपकरण',
+  },
+  'toys-baby': {
+    en: 'Toys & Baby',
+    bn: 'খেলনা ও বেবি কেয়ার',
+    hi: 'खिलौने व बेबी केयर',
+    descEn: 'Toys and baby products',
+    descBn: 'বাচ্চাদের খেলনা ও যত্ন',
+    descHi: 'खिलौने और बेबी केयर',
+  },
+  'auto-accessories': {
+    en: 'Auto Accessories',
+    bn: 'গাড়ির এক্সেসরিজ',
+    hi: 'ऑटोमोबाइल सामान',
+    descEn: 'Vehicle care & accessories',
+    descBn: 'যানবাহন ও গাড়ির এক্সেসরিজ',
+    descHi: 'गाड़ी की देखभाल और सामान',
+  },
+  'sports': {
+    en: 'Sports',
+    bn: 'খেলাধুলা ও ফিটনেস',
+    hi: 'खेल व फिटनेस',
+    descEn: 'Sports and fitness gear',
+    descBn: 'খেলাধুলা ও ফিটনেস সামগ্রী',
+    descHi: 'खेलकूद और फिटनेस का सामान',
+  },
+  'furniture': {
+    en: 'Furniture',
+    bn: 'আসবাবপত্র',
+    hi: 'फर्नीचर व सजावट',
+    descEn: 'Furniture and living decor',
+    descBn: 'আসবাবপত্র ও ঘরের সাজসজ্জা',
+    descHi: 'फर्नीचर और घर की सजावट',
+  },
+  'books': {
+    en: 'Books',
+    bn: 'বই ও স্টেশনারি',
+    hi: 'किताबें व स्टेशनरी',
+    descEn: 'Books and study materials',
+    descBn: 'বই ও পড়ার সামগ্রী',
+    descHi: 'किताबें और अध्ययन सामग्री',
+  },
+};
+
 export function CategoryNav() {
   const { categories } = useCatalog();
+  const navigationCategories = [{id:'home-for-you',slug:'for-you',name:'For You',bengaliName:'আপনার জন্য',hindiName:'आपके लिए',shortDesc:'Your store homepage',iconName:'Sparkles'},...categories.filter(c=>!['for-you','dairy-eggs'].includes(c.slug))];
   const scrollRef = useRef(null);
   const location = useLocation();
   const { language } = useLanguage();
@@ -167,7 +348,13 @@ export function CategoryNav() {
           type="button"
           onClick={() => handleScroll('left')}
           className="hidden xl:flex items-center justify-center w-7 h-7 rounded-full bg-surface border border-border shadow-subtle hover:bg-surface-soft hover:border-primary text-text-secondary hover:text-primary transition-all mr-1 z-10 shrink-0 cursor-pointer"
-          aria-label="Scroll categories left"
+          aria-label={
+            language === 'bn'
+              ? 'ক্যাটেগরি বামে স্ক্রোল করুন'
+              : language === 'hi'
+              ? 'कैटेगरी बाएं स्क्रॉल करें'
+              : 'Scroll categories left'
+          }
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -179,8 +366,8 @@ export function CategoryNav() {
             showExpanded ? 'py-2 sm:py-2.5' : 'py-1.5 sm:py-2'
           }`}
         >
-          {categories.map((cat) => {
-            const IconComponent = cat.slug === 'for-you' ? ShoppingBag : (iconMap[cat.iconName] || Sparkles);
+          {navigationCategories.map((cat) => {
+            const IconComponent = cat.slug === 'for-you' ? Sparkles : (iconMap[cat.iconName] || Sparkles);
             const targetUrl = cat.slug === 'for-you' ? '/' : `/category/${cat.slug}`;
             const isActive =
               cat.slug === 'for-you'
@@ -188,12 +375,20 @@ export function CategoryNav() {
                 : location.pathname === `/category/${cat.slug}` ||
                   location.pathname.startsWith(`/category/${cat.slug}/`);
 
+            const trans = categoryTranslations[cat.slug];
             const displayName =
               language === 'bn'
-                ? (cat.bengaliName || cat.name)
+                ? (cat.bengaliName || trans?.bn || cat.name)
                 : language === 'hi'
-                ? (cat.hindiName || cat.name)
-                : cat.name;
+                ? (cat.hindiName || trans?.hi || cat.name)
+                : (trans?.en || cat.name);
+
+            const displayDesc =
+              language === 'bn'
+                ? (trans?.descBn || cat.shortDesc || '')
+                : language === 'hi'
+                ? (trans?.descHi || cat.shortDesc || '')
+                : (trans?.descEn || cat.shortDesc || '');
 
             return (
               <Link
@@ -208,7 +403,7 @@ export function CategoryNav() {
                         ? 'bg-primary border-primary text-white shadow-xs'
                         : 'bg-surface-soft/80 hover:bg-surface-soft border-border/80 hover:border-primary/40 text-text-primary')
                 }`}
-                title={`${cat.name} - ${cat.shortDesc}`}
+                title={`${displayName}${displayDesc ? ` - ${displayDesc}` : ''}`}
               >
                 {/* Collapsible Icon Box with Butter-Smooth Transition (Replaces image with icon design from screenshot) */}
                 <div
@@ -262,7 +457,13 @@ export function CategoryNav() {
           type="button"
           onClick={() => handleScroll('right')}
           className="hidden xl:flex items-center justify-center w-7 h-7 rounded-full bg-surface border border-border shadow-subtle hover:bg-surface-soft hover:border-primary text-text-secondary hover:text-primary transition-all ml-1 z-10 shrink-0 cursor-pointer"
-          aria-label="Scroll categories right"
+          aria-label={
+            language === 'bn'
+              ? 'ক্যাটেগরি ডানে স্ক্রোল করুন'
+              : language === 'hi'
+              ? 'कैटेगरी दाएं स्क्रॉल करें'
+              : 'Scroll categories right'
+          }
         >
           <ChevronRight className="w-4 h-4" />
         </button>

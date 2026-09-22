@@ -1,3 +1,5 @@
+import { customerFeatures } from './customer-features.js';
+import { razorpayGateway } from './payments.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
@@ -13,7 +15,20 @@ const money = n => Math.round(n * 100) / 100;
 const now = () => new Date().toISOString();
 const allOrders = db => db.prepare('SELECT data FROM orders ORDER BY rowid DESC').all().map(r => JSON.parse(r.data));
 const saveOrder = (db, order) => db.prepare('UPDATE orders SET data=? WHERE id=?').run(JSON.stringify(order), order.id);
-function imageUrl(value) { if (!value) return ''; const s = str(value, 'Image URL', 1, 2000); if (!(s.startsWith('/') && !s.startsWith('//')) && !/^https:\/\//i.test(s)) fail(400, 'Image must be an HTTPS URL or local path'); return s; }
+function imageUrl(value) {
+  if (!value) return '';
+  if (typeof value !== 'string') fail(400, 'Image URL must be a string');
+  let s = value.trim();
+  if (!s) return '';
+  if (/^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/i.test(s)) {
+    if (s.length > 1000000) fail(400, 'Image data is too large (max 1 MB)');
+    return s;
+  }
+  if (s.startsWith('assets/') || s.startsWith('public/assets/')) s = '/' + s.replace(/^public\//, '');
+  if (s.length > 2000) fail(400, 'Image URL must contain 1–2000 characters');
+  if (!(s.startsWith('/') && !s.startsWith('//')) && !/^https?:\/\//i.test(s)) fail(400, 'Image must be an HTTP/HTTPS URL, local path or valid photo');
+  return s;
+}
 function normalizeIdentifier(value) { const s = str(value, 'Email or phone', 5, 254).toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && !/^\+?[0-9]{10,13}$/.test(s)) fail(400, 'Enter a valid email address or phone number'); return s; }
 function validateCatalog(db, kind, data, id) {
   const old = get(db, kind, id) || {};
@@ -22,6 +37,8 @@ function validateCatalog(db, kind, data, id) {
     if (!list(db, 'categories').some(c => c.slug === category)) fail(400, 'Choose an existing category');
     const p = { ...old, id: old.id ?? id, name: str(data.name, 'Product name'), category, price: money(num(data.price, 'Price', 0.01)), oldPrice: money(num(data.oldPrice ?? data.price, 'Original price')), stock: int(data.stock, 'Stock'), image: imageUrl(data.image) };
     for (const field of ['weight', 'subcategory', 'tag', 'deliveryTime']) p[field] = str(data[field] || '', field, 0);
+    p.description = str(data.description ?? old.description ?? '', 'Description', 0, 3000);
+    p.pricePending = false;
     return p;
   }
   if (kind === 'categories') {
@@ -49,7 +66,7 @@ function quote(db, body) {
   for (const item of body.items) { if (!item || typeof item !== 'object' || item.id === undefined) fail(400, 'Invalid order item'); const id = String(item.id); quantities.set(id, (quantities.get(id) || 0) + int(item.quantity, 'Quantity', 1, 100)); }
   const items = [...quantities].map(([id, quantity]) => {
     const product = get(db, 'products', id);
-    if (!product) fail(409, 'A product in your cart is no longer available');
+    if (!product || product.archived || product.pricePending || product.price <= 0) fail(409, 'A product in your cart is no longer available');
     if (quantity > product.stock) fail(409, `${product.name}: only ${product.stock} in stock`);
     return { id: product.id, name: product.name, image: product.image, weight: product.weight, price: product.price, quantity };
   });
@@ -65,24 +82,17 @@ function quote(db, body) {
   return { items, subtotal, discount, deliveryFee: config.deliveryFee, total: money(subtotal - discount + config.deliveryFee), couponCode: promotion?.code || '', promotionId: promotion?.id };
 }
 
-export function createHandler(db, { origin = process.env.APP_ORIGIN || '', production = process.env.NODE_ENV === 'production', distPath = resolve('dist') } = {}) {
-  if (production && origin && !origin.startsWith('https://')) throw new Error('Production APP_ORIGIN must use HTTPS');
-  const limits = new Map();
-  return async (req, res) => {
+export function createApp(db, { origin = process.env.APP_ORIGIN || 'http://127.0.0.1:3000', production = process.env.NODE_ENV === 'production', distPath = resolve('dist'), gateway = razorpayGateway(), paymentMode = process.env.CHECKOUT_PAYMENT_MODE || 'online' } = {}) {
+  if (production && !origin.startsWith('https://')) throw new Error('Production APP_ORIGIN must use HTTPS');
+  if (!['preference','online'].includes(paymentMode)) throw new Error('Invalid CHECKOUT_PAYMENT_MODE');
+  if (production && paymentMode === 'online' && gateway.enabled && gateway.testMode) throw new Error('Use live Razorpay keys for production; test keys cannot collect real payments');
+  const limits = new Map(), paymentStarts = new Map();
+  return createServer(async (req, res) => {
     const send = (data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     if (production) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
-      const host = req.headers['x-forwarded-host'] || req.headers.host || '127.0.0.1:3000';
-      const proto = req.headers['x-forwarded-proto'] || (production ? 'https' : 'http');
-      const baseOrigin = origin || `${proto}://${host}`;
-      const requestUri = req.headers['x-forwarded-uri'] || (req.url && req.url !== '/api' ? req.url : (req.headers['x-matched-path'] || req.url));
-      const url = new URL(requestUri, baseOrigin);
-      let path = url.pathname;
-      if (path === '/api' && url.searchParams.has('match')) {
-        path = '/api/' + url.searchParams.get('match').replace(/^\/+/, '');
-      }
-      const method = req.method;
+      const url = new URL(req.url, origin), path = url.pathname, method = req.method;
       if (!path.startsWith('/api/')) {
         if (!['GET', 'HEAD'].includes(method)) fail(405, 'Method not allowed');
         let file = resolve(distPath, '.' + decodeURIComponent(path));
@@ -94,36 +104,53 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
       }
       res.setHeader('Cache-Control', 'no-store');
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-        if (req.headers.origin) {
-          const reqOriginHost = new URL(req.headers.origin).host;
-          const isAllowed = origin
-            ? (req.headers.origin === origin || reqOriginHost === new URL(origin).host)
-            : (reqOriginHost === host);
-          if (!isAllowed) fail(403, 'Request origin is not allowed');
-        }
+        if (req.headers.origin && req.headers.origin !== origin) fail(403, 'Request origin is not allowed');
         if (req.headers['sec-fetch-site'] === 'cross-site') fail(403, 'Cross-site requests are not allowed');
         if (!req.headers['content-type']?.startsWith('application/json')) fail(415, 'Send application/json');
       }
-      let body = {};
+      let body = {}, rawBody = Buffer.alloc(0);
       if (['POST', 'PUT', 'PATCH'].includes(method)) {
-        if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
-          body = req.body;
-        } else if (typeof req.body === 'string') {
-          try { body = JSON.parse(req.body || '{}'); } catch { fail(400, 'Invalid JSON'); }
-        } else {
-          let raw = '', size = 0;
-          for await (const chunk of req) { size += chunk.length; if (size > 262144) fail(413, 'Request too large'); raw += chunk; }
-          try { body = JSON.parse(raw || '{}'); } catch { fail(400, 'Invalid JSON'); }
-        }
+        const chunks = []; let size = 0;
+        for await (const chunk of req) { size += chunk.length; if (size > 2097152) fail(413, 'Request too large'); chunks.push(chunk); }
+        rawBody = Buffer.concat(chunks);
+        try { body = JSON.parse(rawBody.toString('utf8') || '{}'); } catch { fail(400, 'Invalid JSON'); }
         if (!body || Array.isArray(body) || typeof body !== 'object') fail(400, 'Expected a JSON object');
+      }
+      // Reservations expire even after a server restart; a late capture requires a refund.
+      transaction(db, () => {
+        for (const order of allOrders(db)) if (order.paymentStatus === 'Pending' && order.status === 'Processing' && Date.parse(order.paymentExpiresAt) <= Date.now()) changeStatus(db, order, 'Cancelled');
+      });
+      if (path === '/api/payments/webhook' && method === 'POST') {
+        if (!gateway.verifyWebhook(rawBody, req.headers['x-razorpay-signature'])) fail(401, 'Invalid webhook signature');
+        const payment = body.payload?.payment?.entity;
+        if (body.event === 'payment.captured' && payment) recordPayment(db, payment);
+        if (body.event === 'refund.processed') {
+          const refund = body.payload?.refund?.entity;
+          if (refund?.payment_id) {
+            const verified = await gateway.fetchPayment(refund.payment_id);
+            const order = allOrders(db).find(o => o.gatewayOrderId && o.gatewayOrderId === verified.order_id);
+            if (order) {
+              transaction(db, () => {
+                const fresh = readOrder(db, order.id);
+                if (verified.id !== refund.payment_id || verified.amount !== Math.round(fresh.total * 100) || verified.currency !== 'INR' || verified.method !== fresh.paymentCode || !Number.isInteger(verified.amount_refunded) || verified.amount_refunded <= 0) fail(400, 'Refund does not match this order');
+                if (fresh.gatewayPaymentId && fresh.gatewayPaymentId !== verified.id) fail(400, 'Refund payment ID does not match');
+                fresh.gatewayPaymentId = verified.id;
+                fresh.paymentStatus = verified.amount_refunded >= Math.round(fresh.total * 100) ? 'Refunded' : 'Partially refunded';
+                if (fresh.status === 'Processing' || fresh.status === 'Out for Delivery') changeStatus(db, fresh, 'Cancelled');
+                saveOrder(db, fresh);
+              });
+            }
+          }
+        }
+        return send({ok:true});
       }
       const user = sessionUser(db, req);
       if (path === '/api/health' && method === 'GET') { db.prepare('SELECT 1').get(); return send({ status: 'ok', database: 'connected' }); }
       if (path === '/api/catalog' && method === 'GET') {
         const s = settings(db);
-        return send({ products: list(db, 'products'), categories: list(db, 'categories'), settings: Object.fromEntries(['storeName','tagline','address','phone','whatsapp','email','deliveryFee','minimumOrder','servicePincodes','acceptingOrders'].map(k => [k, s[k]])) });
+        return send({ products: list(db, 'products').filter(p=>!p.archived), categories: list(db, 'categories').filter(c=>!c.archived), settings: {checkoutPaymentMode:paymentMode, onlinePaymentsEnabled:paymentMode === 'online' && gateway.enabled, paymentTestMode:gateway.testMode, ...Object.fromEntries(['storeName','tagline','address','phone','whatsapp','email','deliveryFee','minimumOrder','servicePincodes','acceptingOrders'].map(k => [k, s[k]]))} });
       }
-      if (['/api/auth/login', '/api/auth/register'].includes(path) && method === 'POST') {
+      if (['/api/auth/login', '/api/auth/register', '/api/auth/admin/login'].includes(path) && method === 'POST') {
         const ip = req.socket.remoteAddress, key = `auth:${ip}`, bucket = limits.get(key);
         if (bucket && bucket.until > Date.now() && bucket.count >= 20) fail(429, 'Too many attempts. Try again in 15 minutes');
         if (limits.size > 10000) for (const [k, v] of limits) if (v.until < Date.now()) limits.delete(k);
@@ -137,6 +164,7 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
         } else {
           const row = db.prepare('SELECT * FROM users WHERE identifier=?').get(identifier);
           if (!row || !(await verifyPassword(password, row.password))) fail(401, 'Incorrect email/phone or password');
+          if (path === '/api/auth/admin/login' && row.role !== 'admin') fail(401, 'Incorrect administrator credentials');
           account = publicUser(row);
         }
         startSession(db, res, account, production, body.rememberMe !== false); return send({ user: account });
@@ -147,6 +175,7 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
         if (token) db.prepare('DELETE FROM sessions WHERE token=?').run(digest(token));
         res.setHeader('Set-Cookie', `akm_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${production ? '; Secure' : ''}`); return send({ ok: true });
       }
+      if (await customerFeatures({db,path,method,body,user,res,send})) return;
       if (!user) fail(401, 'Please sign in');
       if (path === '/api/account' && method === 'PATCH') {
         const row = db.prepare('SELECT * FROM users WHERE id=?').get(user.id), data = JSON.parse(row.data);
@@ -179,19 +208,58 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
         return send(transaction(db, () => {
           const previous = db.prepare('SELECT data FROM orders WHERE user_id=? AND request_key=?').get(user.id, requestKey);
           if (previous) return JSON.parse(previous.data);
-          if (body.paymentMethod !== 'cod') fail(400, 'Only cash on delivery is available');
+          if (!['cod','upi','card'].includes(body.paymentMethod)) fail(400, 'Choose cash on delivery, UPI or card');
+          if (paymentMode === 'online' && body.paymentMethod !== 'cod' && !gateway.enabled) fail(503, 'Online payments are not configured. Choose cash on delivery.');
           const customerName = str(body.customerName, 'Name', 2, 100), customerPhone = str(body.customerPhone, 'Phone', 10, 16), deliveryAddress = str(body.deliveryAddress, 'Delivery address', 8, 1000), pincode = str(body.pincode, 'Pincode', 6, 6);
           if (!/^\+?[\d\s-]{10,16}$/.test(customerPhone) || !/^\d{6}$/.test(pincode)) fail(400, 'Invalid phone or pincode');
           const config = settings(db);
           if (!config.servicePincodes.includes(pincode)) fail(400, 'We do not deliver to this pincode yet');
           const pricing = quote(db, body);
           if (body.expectedTotal !== pricing.total) fail(409, 'Your total changed. Review the updated total and place your order again');
-          const order = { ...pricing, id: `AKM-${randomUUID().slice(0, 12).toUpperCase()}`, userId: user.id, createdAt: now(), date: new Date().toLocaleDateString('en-GB'), status: 'Processing', statusType: 'active', customerName, customerPhone, deliveryAddress, pincode, paymentMethod: 'Cash on Delivery', paymentStatus: 'Unpaid', estDelivery: 'Confirmed by store', rider: '', history: [{ status: 'Processing', at: now() }] };
+          if (paymentMode === 'online' && body.paymentMethod !== 'cod' && pricing.total < 1) fail(400, 'Online payment requires a total of at least ₹1');
+          const order = { ...pricing, id: `AKM-${randomUUID().slice(0, 12).toUpperCase()}`, userId: user.id, createdAt: now(), date: new Date().toLocaleDateString('en-GB'), status: 'Processing', statusType: 'active', customerName, customerPhone, deliveryAddress, pincode, paymentMode, paymentCode: body.paymentMethod, paymentMethod: {cod:'Cash on Delivery',upi:'UPI',card:'Card payment'}[body.paymentMethod], paymentStatus: paymentMode === 'preference' || body.paymentMethod === 'cod' ? 'Unpaid' : 'Pending', paymentExpiresAt: paymentMode === 'preference' || body.paymentMethod === 'cod' ? null : new Date(Date.now() + 30 * 60000).toISOString(), storeWhatsapp: config.whatsapp, estDelivery: 'Confirmed by store', rider: '', history: [{ status: 'Processing', at: now() }] };
           for (const item of order.items) { const p = get(db, 'products', item.id); put(db, 'products', { ...p, stock: p.stock - item.quantity }); }
           if (pricing.promotionId) { const p = get(db, 'promotions', pricing.promotionId); put(db, 'promotions', { ...p, usageCount: p.usageCount + 1 }); }
           db.prepare('INSERT INTO orders VALUES(?,?,?,?)').run(order.id, user.id, requestKey, JSON.stringify(order));
           return order;
         }), 201);
+      }
+      const detailMatch = path.match(/^\/api\/orders\/([^/]+)$/);
+      if (detailMatch && method === 'GET') {
+        const order = readOrder(db, decodeURIComponent(detailMatch[1]));
+        if (!order || order.userId !== user.id) fail(404, 'Order not found');
+        return send(order);
+      }
+      const paymentMatch = path.match(/^\/api\/orders\/([^/]+)\/payment\/(start|verify)$/);
+      if (paymentMatch && method === 'POST') {
+        const order = readOrder(db, paymentMatch[1]);
+        if (!order || order.userId !== user.id) fail(404, 'Order not found');
+        if (!['upi','card'].includes(order.paymentCode)) fail(400, 'This order uses cash on delivery');
+        if (paymentMatch[2] === 'verify') {
+          const paymentId = str(body.razorpay_payment_id, 'Payment ID', 5, 100);
+          if (!order.gatewayOrderId || body.razorpay_order_id !== order.gatewayOrderId || !gateway.verify(order.gatewayOrderId, paymentId, body.razorpay_signature)) fail(400, 'Payment signature is invalid');
+          const payment = await gateway.fetchPayment(paymentId);
+          if (payment.id !== paymentId || payment.order_id !== order.gatewayOrderId) fail(400, 'Payment does not match this order');
+          recordPayment(db, payment);
+          return send(readOrder(db, order.id));
+        }
+        if (paymentMode !== 'online' || order.paymentMode === 'preference') fail(409, 'This store records payment preferences only; no payment is collected on the website');
+        if (order.paymentStatus === 'Paid') return send({order});
+        if (order.status !== 'Processing' || order.paymentStatus !== 'Pending') fail(409, 'This order is no longer awaiting payment');
+        if (!gateway.enabled) fail(503, 'Online payments are not configured');
+        if (!order.gatewayOrderId) {
+          if (!paymentStarts.has(order.id)) {
+            paymentStarts.set(order.id, (async () => {
+              const created = await gateway.createOrder(order);
+              if (!created.id || created.amount !== Math.round(order.total * 100) || created.currency !== 'INR') fail(502, 'Invalid payment provider response');
+              transaction(db, () => {const fresh = readOrder(db, order.id); fresh.gatewayOrderId = created.id; saveOrder(db, fresh);});
+            })().finally(() => paymentStarts.delete(order.id)));
+          }
+          await paymentStarts.get(order.id);
+        }
+        const fresh = readOrder(db, order.id);
+        if (fresh.status !== 'Processing' || Date.parse(fresh.paymentExpiresAt) <= Date.now()) fail(409, 'Payment reservation expired. Place a new order.');
+        return send({key:gateway.key,gatewayOrderId:fresh.gatewayOrderId,amount:Math.round(fresh.total * 100),currency:'INR'});
       }
       const cancelMatch = path.match(/^\/api\/orders\/([^/]+)\/cancel$/);
       if (cancelMatch && method === 'POST') {
@@ -234,6 +302,24 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
           db.prepare('DELETE FROM catalog WHERE kind=? AND id=?').run(kind, id); return send({ ok: true });
         }
       }
+      const paymentRecordMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/payment-record$/);
+      if (paymentRecordMatch && method === 'PATCH') return send(transaction(db, () => {
+        const order = readOrder(db, paymentRecordMatch[1]);
+        if (!order) fail(404, 'Order not found');
+        if (order.paymentMode !== 'preference') fail(409, 'Gateway payments must be verified by the payment provider');
+        if (body.confirmed !== true) fail(400, 'Confirm you have verified the payment or refund');
+        const reference = str(body.reference, 'Receipt or transaction reference', 4, 100);
+        if (body.status === 'Paid') {
+          if (order.status === 'Cancelled' || order.paymentStatus !== 'Unpaid') fail(409, 'This order cannot be marked paid');
+          order.paidAt = now();
+        } else if (body.status === 'Refunded') {
+          if (order.paymentStatus !== 'Refund required') fail(409, 'This order is not awaiting a refund');
+          order.refundedAt = now();
+        } else fail(400, 'Choose Paid or Refunded');
+        order.paymentStatus = body.status;
+        order.paymentRecord = {reference, verifiedBy:user.id, at:now()};
+        saveOrder(db, order); return order;
+      }));
       const statusMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/status$/);
       if (statusMatch && method === 'PATCH') return send(transaction(db, () => {
         const row = db.prepare('SELECT data FROM orders WHERE id=?').get(statusMatch[1]); if (!row) fail(404, 'Order not found');
@@ -249,22 +335,42 @@ export function createHandler(db, { origin = process.env.APP_ORIGIN || '', produ
       }
       fail(404, 'API route not found');
     } catch (error) { if (!error.status) console.error(error); if (!res.headersSent) send({ error: error.status ? error.message : 'Unexpected server error' }, error.status || 500); else res.end(); }
-  };
-}
-
-export function createApp(db, options = {}) {
-  return createServer(createHandler(db, options));
+  });
 }
 function changeStatus(db, order, status) {
   if (order.status === status) return order;
   const allowed = { Processing: ['Out for Delivery', 'Cancelled'], 'Out for Delivery': ['Delivered', 'Cancelled'], Delivered: [], Cancelled: [] };
   if (!allowed[order.status]?.includes(status)) fail(409, `Cannot change ${order.status} to ${status}`);
+  if (status !== 'Cancelled' && order.paymentMode !== 'preference' && ['upi','card'].includes(order.paymentCode) && order.paymentStatus !== 'Paid') fail(409, 'Verify online payment before dispatching this order');
   if (status === 'Cancelled') {
+    if (order.paymentStatus === 'Paid') order.paymentStatus = 'Refund required';
+    if (order.paymentStatus === 'Pending') order.paymentStatus = 'Not paid';
     for (const item of order.items) { const p = get(db, 'products', item.id); if (p) put(db, 'products', { ...p, stock: p.stock + item.quantity }); }
     if (order.promotionId) { const p = get(db, 'promotions', order.promotionId); if (p) put(db, 'promotions', { ...p, usageCount: Math.max(0, p.usageCount - 1) }); }
     order.cancelledAt = now();
   }
-  if (status === 'Delivered') { order.deliveredAt = now(); order.paymentStatus = 'Collected'; }
+  if (status === 'Delivered') { order.deliveredAt = now(); if (!['upi','card'].includes(order.paymentCode)) order.paymentStatus = 'Collected'; }
   order.status = status; order.statusType = ['Cancelled', 'Delivered'].includes(status) ? 'history' : 'active';
   order.history.push({ status, at: now() }); saveOrder(db, order); return order;
+}
+
+function readOrder(db, id) {
+  const row = db.prepare('SELECT data FROM orders WHERE id=?').get(id);
+  return row ? JSON.parse(row.data) : null;
+}
+function recordPayment(db, payment) {
+  return transaction(db, () => {
+    const order = allOrders(db).find(o => o.gatewayOrderId && o.gatewayOrderId === payment.order_id);
+    if (!order) return;
+    if (!payment.id || payment.amount !== Math.round(order.total * 100) || payment.currency !== 'INR' || payment.method !== order.paymentCode) fail(400, 'Payment amount or method does not match the order');
+    if (payment.status !== 'captured') fail(409, 'Payment is awaiting confirmation. Check My Orders shortly; do not pay again if money was deducted.');
+    if (order.gatewayPaymentId) {
+      if (order.gatewayPaymentId !== payment.id) fail(409, 'A different payment was already recorded');
+      return order;
+    }
+    order.gatewayPaymentId = payment.id;
+    order.paymentStatus = order.status === 'Cancelled' ? 'Refund required' : 'Paid';
+    order.paidAt = now();
+    saveOrder(db, order); return order;
+  });
 }

@@ -148,9 +148,9 @@ export function Footer({ onOpenVip }) {
             </h4>
             <ul className="space-y-2 text-xs text-text-secondary font-medium">
               <li>
-                <Link to="/category/dairy-eggs" className="hover:text-primary transition-colors flex items-center gap-1">
+                <Link to="/" className="hover:text-primary transition-colors flex items-center gap-1">
                   <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />
-                  <span>{t('sections.dairy')}</span>
+                  <span>For You</span>
                 </Link>
               </li>
               <li>
@@ -160,15 +160,15 @@ export function Footer({ onOpenVip }) {
                 </Link>
               </li>
               <li>
-                <Link to="/category/food-grocery" className="hover:text-primary transition-colors flex items-center gap-1">
+                <Link to="/category/spices-grocery" className="hover:text-primary transition-colors flex items-center gap-1">
                   <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />
-                  <span>{t('sections.under99')}</span>
+                  <span>Spices & Grocery</span>
                 </Link>
               </li>
               <li>
-                <Link to="/category/quick-delivery" className="hover:text-primary transition-colors flex items-center gap-1">
+                <Link to="/category/beverages" className="hover:text-primary transition-colors flex items-center gap-1">
                   <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />
-                  <span>{t('sections.quickDelivery')}</span>
+                  <span>Drinks & Beverages</span>
                 </Link>
               </li>
             </ul>
@@ -292,11 +292,11 @@ export function Footer({ onOpenVip }) {
 
           {/* Grouped Legal Links */}
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-3 gap-y-1 text-xs">
-            <Link to="/" className="whitespace-nowrap hover:text-primary transition-colors">
+            <Link to="/privacy-policy" className="whitespace-nowrap hover:text-primary transition-colors">
               {t('footer.privacyPolicy')}
             </Link>
             <span className="text-border select-none">•</span>
-            <Link to="/" className="whitespace-nowrap hover:text-primary transition-colors">
+            <Link to="/terms-of-service" className="whitespace-nowrap hover:text-primary transition-colors">
               {t('footer.termsOfService')}
             </Link>
             <span className="text-border select-none">•</span>

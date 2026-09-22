@@ -11,9 +11,11 @@
     "preview": "vite preview",
     "start": "node --env-file-if-exists=.env server/index.js",
     "admin:create": "node --env-file-if-exists=.env server/create-admin.js",
+    "db:migrate:supabase": "node --env-file-if-exists=.env scripts/migrate-to-supabase.js",
     "test": "node --test server/tests/*.test.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.0",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

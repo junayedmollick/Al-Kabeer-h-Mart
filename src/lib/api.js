@@ -5,16 +5,17 @@ export async function api(path, options = {}) {
       ...options,
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...options.headers },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
     throw new Error('Cannot reach the store server. Please try again.');
   }
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = data?.error || (response.status === 404 ? 'API service route not found (404)' : `Server request failed (${response.status})`);
-    throw Object.assign(new Error(message), { status: response.status });
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    throw new Error('The store is temporarily unavailable. Please try again shortly.');
   }
-  if (!data) throw new Error('The server returned an invalid response');
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error('The store API returned an invalid response. Please try again.'); }
+  if (!response.ok) throw Object.assign(new Error(data?.error || 'Request failed'), { status: response.status });
   return data;
 }

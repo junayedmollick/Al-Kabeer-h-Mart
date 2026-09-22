@@ -11,8 +11,8 @@ import { ProductCard } from '../components/ProductCard';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Home({ searchQuery, onSearchChange, onOpenVip }) {
-  const { products } = useCatalog();
-  const { t } = useLanguage();
+  const { products, categories } = useCatalog();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
 
   // Search filtered products
@@ -26,27 +26,6 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
         (p.tag && p.tag.toLowerCase().includes(q))
     );
   }, [searchQuery, products]);
-
-  // Section specific curated products
-  const quickProducts = useMemo(
-    () => products.filter((p) => p.category === 'quick-delivery' || p.category === 'dairy-eggs').slice(0, 6),
-    [products]
-  );
-
-  const under99Products = useMemo(
-    () => products.filter((p) => p.price < 100).slice(0, 6),
-    [products]
-  );
-
-  const dairyProducts = useMemo(
-    () => products.filter((p) => p.category === 'dairy-eggs').slice(0, 6),
-    [products]
-  );
-
-  const snacksProducts = useMemo(
-    () => products.filter((p) => p.category === 'snacks').slice(0, 6),
-    [products]
-  );
 
   const handleScrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
@@ -64,10 +43,10 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
             <div className="flex items-center gap-2">
               <Search className="w-5 h-5 text-primary" />
               <h2 className="text-xl sm:text-2xl font-black text-text-primary">
-                Results for "{searchQuery}"
+                {t('search.resultsFor')} "{searchQuery}"
               </h2>
               <span className="text-xs bg-primary-light text-primary font-bold px-2.5 py-0.5 rounded-full ml-1">
-                {searchResults.length} {searchResults.length === 1 ? 'item' : 'items'}
+                {searchResults.length} {searchResults.length === 1 ? t('cart.item') : t('cart.items')}
               </span>
             </div>
             <button
@@ -75,7 +54,7 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
               onClick={() => onSearchChange('')}
               className="text-xs font-bold text-primary hover:underline cursor-pointer"
             >
-              Clear Search
+              {t('search.clearSearch')}
             </button>
           </div>
 
@@ -83,17 +62,17 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
             <div className="py-16 bg-surface rounded-3xl border border-border text-center p-6 shadow-subtle">
               <Search className="w-12 h-12 text-text-muted mx-auto mb-3" />
               <h3 className="text-lg font-black text-text-primary mb-1">
-                No items found matching "{searchQuery}"
+                {t('search.noItemsFound')} "{searchQuery}"
               </h3>
               <p className="text-xs text-text-secondary max-w-sm mx-auto mb-6">
-                Try searching for atta, milk, bread, butter, eggs, chips or cold drinks.
+                {t('search.trySearching')}
               </p>
               <button
                 type="button"
                 onClick={() => onSearchChange('')}
                 className="bg-primary hover:bg-primary-dark text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
               >
-                View All Products
+                {t('search.viewAllProducts')}
               </button>
             </div>
           ) : (
@@ -121,46 +100,20 @@ export function Home({ searchQuery, onSearchChange, onOpenVip }) {
           {/* 4. Shop by Category Grid */}
           <CategoryGrid />
 
-          {/* 5. Quick Delivery Section */}
-          <ProductSection
-            id="quick-delivery"
-            title={t('sections.quickDelivery')}
-            subtitle={t('sections.quickDeliverySub')}
-            icon={Zap}
-            products={quickProducts}
-            onViewAll={() => navigate('/category/quick-delivery')}
-          />
-
-          {/* 6. Under ₹99 Store Section (Warm Cream Surface with Golden Accent) */}
-          <ProductSection
-            id="under-99"
-            title={t('sections.under99')}
-            subtitle={t('sections.under99Sub')}
-            icon={Tag}
-            products={under99Products}
-            isWarmSection={true}
-            onViewAll={() => navigate('/category/snacks')}
-          />
-
-          {/* 7. Dairy, Bread & Eggs Section */}
-          <ProductSection
-            id="dairy-section"
-            title={t('sections.dairy')}
-            subtitle={t('sections.dairySub')}
-            icon={Milk}
-            products={dairyProducts}
-            onViewAll={() => navigate('/category/dairy-eggs')}
-          />
-
-          {/* 8. Munchies & Snacks Section */}
-          <ProductSection
-            id="snacks-section"
-            title={t('sections.snacks')}
-            subtitle={t('sections.snacksSub')}
-            icon={Cookie}
-            products={snacksProducts}
-            onViewAll={() => navigate('/category/snacks')}
-          />
+          {categories.filter(c=>products.some(p=>p.category===c.slug)).map((category) => {
+            const catTitle = language === 'bn' ? (category.bengaliName || category.name) : language === 'hi' ? (category.hindiName || category.name) : category.name;
+            return (
+              <ProductSection
+                key={category.id}
+                id={category.slug}
+                title={catTitle}
+                subtitle={category.shortDesc || category.tagline}
+                icon={Tag}
+                products={products.filter(p=>p.category===category.slug).slice(0,6)}
+                onViewAll={()=>navigate('/category/'+category.slug)}
+              />
+            );
+          })}
         </>
       )}
     </div>

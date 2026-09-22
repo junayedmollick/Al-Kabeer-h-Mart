@@ -10,8 +10,10 @@ import {
   Crown
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export function CartDrawer({ isOpen, onClose, onOpenVip }) {
+  const { t } = useLanguage();
   const {
     cart,
     addToCart,
@@ -85,10 +87,10 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-primary" />
               <h3 className="font-black text-text-primary text-base sm:text-lg">
-                Your Shopping Cart
+                {t('cartDrawer.title') || 'Your Shopping Cart'}
               </h3>
               <span className="text-xs bg-primary-light text-primary font-bold px-2 py-0.5 rounded-full">
-                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                {itemCount} {itemCount === 1 ? (t('cartDrawer.itemCountSingle') || 'item') : (t('cartDrawer.itemsCount') || 'items')}
               </span>
             </div>
 
@@ -110,17 +112,17 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
                   <ShoppingBag className="w-10 h-10 stroke-1" />
                 </div>
                 <h4 className="text-lg font-black text-text-primary mb-1">
-                  Your cart is empty
+                  {t('cart.emptyTitle')}
                 </h4>
                 <p className="text-xs text-text-secondary max-w-xs mb-6">
-                  Add fresh groceries, snacks, milk and daily kitchen essentials to your cart.
+                  {t('cartDrawer.emptyDesc') || t('cart.emptySubtitle')}
                 </p>
                 <button
                   type="button"
                   onClick={onClose}
                   className="bg-primary hover:bg-primary-dark text-white font-black text-xs px-6 py-3 rounded-xl transition-all shadow-sm cursor-pointer"
                 >
-                  Start Shopping
+                  {t('cart.startShopping')}
                 </button>
               </div>
             ) : (
@@ -130,7 +132,7 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
                   <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2 text-amber-900 font-medium">
                       <Crown className="w-4 h-4 text-secondary fill-secondary shrink-0" />
-                      <span>Save ₹10 delivery fee on every order with 999 VIP</span>
+                      <span>{t('cartDrawer.vipNotice')}</span>
                     </div>
                     <button
                       type="button"
@@ -140,7 +142,7 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
                       }}
                       className="text-xs font-black text-amber-900 underline hover:text-amber-700 shrink-0 cursor-pointer"
                     >
-                      Join VIP
+                      {t('cartDrawer.joinVip')}
                     </button>
                   </div>
                 )}
@@ -170,7 +172,7 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
                         ₹{item.price * item.quantity}
                         {item.quantity > 1 && (
                           <span className="text-[10px] text-text-muted font-normal ml-1">
-                            (₹{item.price} each)
+                            (₹{item.price} {t('cartDrawer.each') || 'each'})
                           </span>
                         )}
                       </div>
@@ -221,17 +223,17 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
               {/* Bill Details */}
               <div className="bg-surface-soft rounded-2xl p-3.5 mb-4 space-y-2 text-xs">
                 <div className="flex justify-between text-text-secondary">
-                  <span>Items Total</span>
+                  <span>{t('cart.itemTotal')}</span>
                   <span className="font-semibold text-text-primary">₹{cartSubtotal}</span>
                 </div>
                 <div className="flex justify-between text-text-secondary">
-                  <span>Delivery Fee</span>
+                  <span>{t('cart.deliveryFee')}</span>
                   <span className={`font-semibold ${isVip ? 'text-success font-bold' : 'text-text-primary'}`}>
-                    {isVip ? 'FREE (VIP)' : `₹${deliveryFee}`}
+                    {isVip ? (t('cart.vipFreeDelivery') || 'FREE (VIP)') : `₹${deliveryFee}`}
                   </span>
                 </div>
                 <div className="border-t border-border pt-2 flex justify-between items-baseline font-black text-sm text-text-primary">
-                  <span>Grand Total</span>
+                  <span>{t('cart.grandTotal')}</span>
                   <span className="text-base text-primary">₹{cartTotal}</span>
                 </div>
               </div>
@@ -243,7 +245,7 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
                 className="w-full bg-[#25D366] hover:bg-[#1ebc5c] text-white font-black py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-md transition-all hover:scale-[1.02] active:scale-98 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">Order via WhatsApp</span>
+                  <span className="text-sm font-bold">{t('cartDrawer.orderWhatsApp') || 'Order via WhatsApp'}</span>
                 </div>
                 <div className="flex items-center gap-1.5 bg-black/15 px-3 py-1 rounded-xl text-xs">
                   <span>₹{cartTotal}</span>
@@ -252,7 +254,7 @@ export function CartDrawer({ isOpen, onClose, onOpenVip }) {
               </button>
 
               <p className="text-[10px] text-center text-text-muted mt-2">
-                ⚡ Orders dispatched within 10–15 minutes from Bhagabatipur hub.
+                {t('cartDrawer.dispatchNote') || '⚡ Orders dispatched within 10–15 minutes from Bhagabatipur hub.'}
               </p>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { OrderActions } from '../OrderActions';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -239,6 +240,7 @@ export function OrdersTab() {
                 </div>
               </div>
 
+              <OrderActions order={order} />
               {/* Order Item List - Clean Full Width Strip */}
               <div className="space-y-2">
                 {order.items.map((item, idx) => (
