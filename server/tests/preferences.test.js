@@ -6,7 +6,7 @@ import {createUser} from '../auth.js';
 
 test('payment preferences accept all three methods without a gateway or an online charge',async()=>{
   const db=openDatabase(':memory:');
-  put(db,'products',{...get(db,'products',1),price:20,stock:10});
+  put(db,'products',{...get(db,'products',1),price:20,stock:10,archived:false,pricePending:false});
   const app=createApp(db,{paymentMode:'preference',gateway:{enabled:false,testMode:false}});
   await new Promise(r=>app.listen(0,'127.0.0.1',r));
   const base='http://127.0.0.1:'+app.address().port+'/api';

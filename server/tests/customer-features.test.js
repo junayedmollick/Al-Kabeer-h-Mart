@@ -49,7 +49,7 @@ test('customer reviews, private avatars and safe payment readiness',async t=>{
       assert.equal((await request('/account/avatar','GET',undefined,a.cookie)).status,404);
     });
     await t.test('unpriced or archived products cannot be ordered; missing keys never create online orders',async()=>{
-      put(db,'products',{...get(db,'products',1),price:20,stock:10});
+      put(db,'products',{...get(db,'products',1),price:20,stock:10,archived:false,pricePending:false});
       const input={items:[{id:1,quantity:1}],paymentMethod:'upi',expectedTotal:30,customerName:'Alice Buyer',customerPhone:'9000000000',deliveryAddress:'Test house, Test road',pincode:'712701'};
       const config=(await request('/catalog')).data.settings;assert.equal(config.checkoutPaymentMode,'online');assert.equal(config.onlinePaymentsEnabled,false);
       for(const paymentMethod of ['upi','card'])assert.equal((await request('/orders','POST',{...input,paymentMethod},a.cookie)).status,503);

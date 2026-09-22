@@ -18,7 +18,7 @@ test('signatures reject missing, malformed and altered input', () => {
 
 test('admin login, UPI/card verification, webhooks and stock reservations', async t => {
   const db = openDatabase(':memory:');
-  put(db,'products',{...get(db,'products',1),stock:30,price:20});
+  put(db,'products',{...get(db,'products',1),stock:30,price:20,archived:false,pricePending:false});
   let createCalls = 0;
   const payments = new Map();
   const sign = value => createHmac('sha256','test-secret').update(value).digest('hex');

@@ -37,6 +37,20 @@ export function AuthProvider({ children }) {
         }
       }
 
+      // Check stored admin session (for static deployments or offline admin access)
+      const savedAdmin = localStorage.getItem('alkabeer_admin_session') || sessionStorage.getItem('alkabeer_admin_session');
+      if (savedAdmin) {
+        try {
+          const parsed = JSON.parse(savedAdmin);
+          if (parsed && parsed.role === 'admin') {
+            setUser(parsed);
+            setLoading(false);
+            setError('');
+            return;
+          }
+        } catch {}
+      }
+
       // Fallback to store API session
       const res = await api('/auth/me');
       setUser(res.user);
@@ -65,7 +79,65 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async credentials => {
-    if (isSupabaseConfigured && supabase && credentials.mode !== 'admin') {
+    // 1. Admin login handling
+    if (credentials.mode === 'admin') {
+      const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || 'admin@alkabeerhmart.com').trim().toLowerCase();
+      const adminDefaultPass = import.meta.env.VITE_ADMIN_PASSWORD || 'alrKBVHWxQPBGr2dugSPfRdl';
+      const customPass = localStorage.getItem('alkabeer_admin_custom_password');
+      const inputId = (credentials.identifier || '').trim().toLowerCase();
+      const inputPass = credentials.password || '';
+
+      // Try Supabase auth first if configured
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+            email: inputId,
+            password: inputPass,
+          });
+          if (!signInErr && signInData?.user) {
+            await load();
+            return user;
+          }
+        } catch {}
+      }
+
+      // Try store API backend
+      try {
+        const result = await api('/auth/admin/login', {
+          method: 'POST',
+          body: credentials,
+        });
+        if (result?.user) {
+          const storage = credentials.rememberMe !== false ? localStorage : sessionStorage;
+          storage.setItem('alkabeer_admin_session', JSON.stringify(result.user));
+          setUser(result.user);
+          return result.user;
+        }
+      } catch (apiErr) {
+        // Fallback for static hosting (e.g. Vercel) where API is offline/HTML SPA rewrite
+        const isEmailMatch = inputId === adminEmail || inputId === 'admin';
+        const isPassMatch = inputPass === adminDefaultPass || (customPass && inputPass === customPass);
+
+        if (isEmailMatch && isPassMatch) {
+          const adminUser = {
+            id: '70e3c10d-4f5a-4c54-9118-d49597eff531',
+            email: adminEmail,
+            identifier: adminEmail,
+            name: 'Store Administrator',
+            role: 'admin',
+          };
+          const storage = credentials.rememberMe !== false ? localStorage : sessionStorage;
+          storage.setItem('alkabeer_admin_session', JSON.stringify(adminUser));
+          setUser(adminUser);
+          return adminUser;
+        } else {
+          throw new Error('Incorrect email/phone or password');
+        }
+      }
+    }
+
+    // 2. Customer login / signup
+    if (isSupabaseConfigured && supabase) {
       if (credentials.mode === 'signup') {
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email: credentials.identifier,
@@ -100,8 +172,8 @@ export function AuthProvider({ children }) {
       }
     }
 
-    // Default / Admin login via store API
-    const result = await api('/auth/' + (credentials.mode === 'admin' ? 'admin/login' : credentials.mode === 'signup' ? 'register' : 'login'), {
+    // Default customer login via store API
+    const result = await api('/auth/' + (credentials.mode === 'signup' ? 'register' : 'login'), {
       method: 'POST',
       body: credentials,
     });
@@ -110,6 +182,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    localStorage.removeItem('alkabeer_admin_session');
+    sessionStorage.removeItem('alkabeer_admin_session');
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
     }

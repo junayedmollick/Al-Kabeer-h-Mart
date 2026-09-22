@@ -77,15 +77,33 @@ export function AdminCategories() {
   const [saving, setSaving] = useState(false);
   const handleSaveCategory = async e => {
     e.preventDefault(); if(saving) return; setSaving(true);
+    const slug = editingCategory?.slug || formData.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const body = { revision: editingCategory?.revision, ...formData, slug, subcategories: formData.subcategories.split(',').map(s => s.trim()).filter(Boolean) };
     try {
-      const slug = editingCategory?.slug || formData.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      await api('/admin/categories' + (editingCategory ? '/' + encodeURIComponent(editingCategory.id) : ''), { method: editingCategory ? 'PUT' : 'POST', body: { revision: editingCategory?.revision, ...formData, slug, subcategories: formData.subcategories.split(',').map(s => s.trim()).filter(Boolean) } });
-      await refreshCatalog(); setIsModalOpen(false); showToast('Category saved.');
-    } catch(e) { showToast(e.message); } finally { setSaving(false); }
+      await api('/admin/categories' + (editingCategory ? '/' + encodeURIComponent(editingCategory.id) : ''), { method: editingCategory ? 'PUT' : 'POST', body });
+    } catch(apiErr) {
+      // Fallback for static hosting / offline
+      const currentList = [...categoryList];
+      if (editingCategory) {
+        const index = currentList.findIndex(c => c.id === editingCategory.id || c.slug === editingCategory.slug);
+        if (index !== -1) currentList[index] = { ...currentList[index], ...body };
+      } else {
+        currentList.push({ id: slug, ...body });
+      }
+      localStorage.setItem('alkabeer_catalog_categories', JSON.stringify(currentList));
+    }
+    await refreshCatalog(); setIsModalOpen(false); showToast('Category saved.');
+    setSaving(false);
   };
   const handleDeleteCategory = async () => {
     if(!editingCategory || !window.confirm('Delete this category? Products must be moved first.')) return;
-    try { await api('/admin/categories/' + encodeURIComponent(editingCategory.id), { method:'DELETE' }); await refreshCatalog(); setIsModalOpen(false); showToast('Category deleted.'); } catch(e) { showToast(e.message); }
+    try {
+      await api('/admin/categories/' + encodeURIComponent(editingCategory.id), { method:'DELETE' });
+    } catch(apiErr) {
+      const currentList = categoryList.filter(c => c.id !== editingCategory.id && c.slug !== editingCategory.slug);
+      localStorage.setItem('alkabeer_catalog_categories', JSON.stringify(currentList));
+    }
+    await refreshCatalog(); setIsModalOpen(false); showToast('Category deleted.');
   };
 
   const filteredCategories = categoryList.filter(

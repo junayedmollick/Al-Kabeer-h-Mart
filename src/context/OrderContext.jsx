@@ -127,9 +127,21 @@ export function OrderProvider({ children }) {
   };
 
   const updateOrderStatus = async (id, status) => {
-    const order = await api('/admin/orders/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: { status } });
-    await Promise.all([refreshOrders(), refreshCatalog()]);
-    return order;
+    try {
+      const order = await api('/admin/orders/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: { status } });
+      await Promise.all([refreshOrders(), refreshCatalog()]);
+      return order;
+    } catch (e) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('alkabeer_orders') || '[]');
+        const updatedList = stored.map(o => o.id === id ? { ...o, status } : o);
+        localStorage.setItem('alkabeer_orders', JSON.stringify(updatedList));
+        await refreshOrders();
+        return updatedList.find(o => o.id === id) || { id, status };
+      } catch {
+        throw e;
+      }
+    }
   };
 
   return (

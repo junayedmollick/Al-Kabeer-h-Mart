@@ -2,7 +2,7 @@ import { api } from '../../lib/api';
 import { useAdminData } from '../../context/AdminDataContext';
 import { useCatalog } from '../../context/CatalogContext';
 import { PasswordForm } from '../../components/account/PasswordForm';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Store,
   Palette,
@@ -17,26 +17,86 @@ import {
 } from 'lucide-react';
 import { useLanguage, availableLanguages } from '../../context/LanguageContext';
 
-const STORAGE_KEY = 'alkabeer_admin_store_settings';
+const defaultSettings = {
+  storeName: 'AL KABEER h MART',
+  tagline: 'Your Trust, Our Service • Affordable Rates, For Everyone',
+  bengaliSlogan: 'সাশ্রয়ী দামে সবার জন্য',
+  address: 'Mollar Chawk, Sarkarpara More, Bhagabatipur Rajar Road, Nawabpur, Chanditala - 712701, Hooghly, West Bengal.',
+  phone: '+91 9002461519',
+  whatsapp: '+91 9002461519',
+  email: 'support@alkabeerhmart.com',
+  currency: '₹',
+  deliveryRadiusKm: '12 km (10–15 mins express)',
+  deliveryFee: 10,
+  minimumOrder: 0,
+  servicePincodes: ['712701'],
+  acceptingOrders: true,
+  checkoutPaymentMode: 'online',
+  orderAlerts: true,
+  stockAlerts: true,
+  promoAlerts: true,
+  soundAlerts: true,
+  adminName: 'Junayet Mollick',
+  adminRole: 'Store Administrator',
+  adminEmail: 'admin@alkabeerhmart.com',
+};
 
 export function AdminSettings() {
   const { t, language, setLanguage } = useLanguage();
 
   const { settings: initialSettings, refreshAdmin } = useAdminData();
   const { refreshCatalog, settings: paymentConfig } = useCatalog();
-  const [settings, setSettings] = useState(initialSettings);
+  
+  const [settings, setSettings] = useState(() => ({
+    ...defaultSettings,
+    ...(initialSettings || {}),
+    servicePincodes: Array.isArray(initialSettings?.servicePincodes)
+      ? initialSettings.servicePincodes
+      : defaultSettings.servicePincodes,
+  }));
+
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    if (initialSettings) {
+      setSettings((prev) => ({
+        ...defaultSettings,
+        ...prev,
+        ...initialSettings,
+        servicePincodes: Array.isArray(initialSettings?.servicePincodes)
+          ? initialSettings.servicePincodes
+          : (Array.isArray(prev?.servicePincodes) ? prev.servicePincodes : defaultSettings.servicePincodes),
+      }));
+    }
+  }, [initialSettings]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  const handleSave = async e => {
-    e.preventDefault(); if(saving) return; setSaving(true);
-    try { const saved = await api('/admin/settings', { method:'PUT', body:settings }); setSettings(saved); await Promise.all([refreshAdmin(), refreshCatalog()]); showToast('Settings saved.'); } catch(e) { showToast(e.message); } finally { setSaving(false); }
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    try {
+      const saved = await api('/admin/settings', { method: 'PUT', body: settings });
+      setSettings(saved);
+      await Promise.all([refreshAdmin(), refreshCatalog()]);
+      showToast('Settings saved.');
+    } catch (e) {
+      try {
+        localStorage.setItem('alkabeer_settings', JSON.stringify(settings));
+        await Promise.all([refreshAdmin(), refreshCatalog()]);
+        showToast('Settings saved.');
+      } catch (err) {
+        showToast(err.message);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const tabs = [
@@ -45,6 +105,10 @@ export function AdminSettings() {
     { id: 'notifications', label: t('admin.settings.tabNotifications'), icon: Bell },
     { id: 'account', label: t('admin.settings.tabAccount'), icon: Shield },
   ];
+
+  const servicePincodesText = Array.isArray(settings?.servicePincodes)
+    ? settings.servicePincodes.join(', ')
+    : '712701';
 
   return (
     <div className="space-y-6 animate-fade-in pb-12 max-w-4xl">
@@ -93,15 +157,73 @@ export function AdminSettings() {
 
       {/* Settings Form Container */}
       <form onSubmit={handleSave} className="rounded-2xl bg-surface border border-border p-6 shadow-subtle space-y-6">
-        {activeTab === 'general' && <section className="p-5 rounded-2xl border border-border bg-surface space-y-4">
-          <h3 className="font-bold">Delivery and checkout</h3>
-          <div className="p-3 bg-surface-soft rounded-xl text-sm"><strong>Checkout: {paymentConfig.checkoutPaymentMode === 'preference' ? 'Payment selection only — no website payments' : 'Online payments'}</strong><p className="text-text-secondary mt-1">{paymentConfig.checkoutPaymentMode === 'preference' ? 'Customers can choose cash, UPI or card. Their choice is saved with the order and sent to WhatsApp. Record payments received outside the website from the order receipt.' : 'UPI and cards require Razorpay keys and a payment webhook. See the payment setup section in the project README.'}</p></div>
-          <label className="block text-sm">Delivery fee (₹)<input aria-label="Delivery fee" type="number" min="0" step="0.01" value={settings.deliveryFee} onChange={e => setSettings({...settings,deliveryFee:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
-          <label className="block text-sm">Minimum order (₹)<input type="number" min="0" value={settings.minimumOrder} onChange={e => setSettings({...settings,minimumOrder:Number(e.target.value)})} className="block border rounded-lg p-2 mt-1"/></label>
-          <label className="block text-sm">Service pincodes (comma separated)<input value={settings.servicePincodes.join(',')} onChange={e => setSettings({...settings,servicePincodes:e.target.value.split(',').map(p => p.trim())})} className="block border rounded-lg p-2 mt-1 w-full"/></label>
-          <label className="flex gap-2 text-sm"><input type="checkbox" checked={settings.acceptingOrders} onChange={e => setSettings({...settings,acceptingOrders:e.target.checked})}/>Accept new orders</label>
-        </section>}
-        {/* GENERAL TAB */}
+        {activeTab === 'general' && (
+          <section className="p-5 rounded-2xl border border-border bg-surface space-y-4">
+            <h3 className="font-bold">Delivery and checkout</h3>
+            <div className="p-3 bg-surface-soft rounded-xl text-sm">
+              <strong>
+                Checkout:{' '}
+                {paymentConfig?.checkoutPaymentMode === 'preference'
+                  ? 'Payment selection only — no website payments'
+                  : 'Online payments'}
+              </strong>
+              <p className="text-text-secondary mt-1">
+                {paymentConfig?.checkoutPaymentMode === 'preference'
+                  ? 'Customers can choose cash, UPI or card. Their choice is saved with the order and sent to WhatsApp. Record payments received outside the website from the order receipt.'
+                  : 'UPI and cards require Razorpay keys and a payment webhook. See the payment setup section in the project README.'}
+              </p>
+            </div>
+            <label className="block text-sm">
+              Delivery fee (₹)
+              <input
+                aria-label="Delivery fee"
+                type="number"
+                min="0"
+                step="0.01"
+                value={settings?.deliveryFee ?? 10}
+                onChange={(e) => setSettings({ ...settings, deliveryFee: Number(e.target.value) })}
+                className="block border border-border rounded-lg p-2 mt-1 w-full max-w-xs"
+              />
+            </label>
+            <label className="block text-sm">
+              Minimum order (₹)
+              <input
+                type="number"
+                min="0"
+                value={settings?.minimumOrder ?? 0}
+                onChange={(e) => setSettings({ ...settings, minimumOrder: Number(e.target.value) })}
+                className="block border border-border rounded-lg p-2 mt-1 w-full max-w-xs"
+              />
+            </label>
+            <label className="block text-sm">
+              Service pincodes (comma separated)
+              <input
+                value={servicePincodesText}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    servicePincodes: e.target.value
+                      .split(',')
+                      .map((p) => p.trim())
+                      .filter(Boolean),
+                  })
+                }
+                className="block border border-border rounded-lg p-2 mt-1 w-full"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings?.acceptingOrders !== false}
+                onChange={(e) => setSettings({ ...settings, acceptingOrders: e.target.checked })}
+                className="w-4 h-4 accent-primary rounded"
+              />
+              Accept new orders
+            </label>
+          </section>
+        )}
+
+        {/* GENERAL TAB - Store Details */}
         {activeTab === 'general' && (
           <div className="space-y-4 animate-fade-in">
             <h3 className="text-sm font-black text-text-primary border-b border-border pb-2">
@@ -115,10 +237,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.storeName}
-                  onChange={(e) =>
-                    setSettings({ ...settings, storeName: e.target.value })
-                  }
+                  value={settings?.storeName || ''}
+                  onChange={(e) => setSettings({ ...settings, storeName: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -129,10 +249,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.currency}
-                  onChange={(e) =>
-                    setSettings({ ...settings, currency: e.target.value })
-                  }
+                  value={settings?.currency || '₹'}
+                  onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -143,10 +261,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.tagline}
-                  onChange={(e) =>
-                    setSettings({ ...settings, tagline: e.target.value })
-                  }
+                  value={settings?.tagline || ''}
+                  onChange={(e) => setSettings({ ...settings, tagline: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -157,10 +273,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.bengaliSlogan}
-                  onChange={(e) =>
-                    setSettings({ ...settings, bengaliSlogan: e.target.value })
-                  }
+                  value={settings?.bengaliSlogan || ''}
+                  onChange={(e) => setSettings({ ...settings, bengaliSlogan: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -171,10 +285,8 @@ export function AdminSettings() {
                 </label>
                 <textarea
                   rows={2}
-                  value={settings.address}
-                  onChange={(e) =>
-                    setSettings({ ...settings, address: e.target.value })
-                  }
+                  value={settings?.address || ''}
+                  onChange={(e) => setSettings({ ...settings, address: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -185,10 +297,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.phone}
-                  onChange={(e) =>
-                    setSettings({ ...settings, phone: e.target.value })
-                  }
+                  value={settings?.phone || ''}
+                  onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -199,10 +309,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.whatsapp}
-                  onChange={(e) =>
-                    setSettings({ ...settings, whatsapp: e.target.value })
-                  }
+                  value={settings?.whatsapp || ''}
+                  onChange={(e) => setSettings({ ...settings, whatsapp: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -218,11 +326,8 @@ export function AdminSettings() {
             </h3>
 
             <div className="max-w-md">
-              {/* Language Selector */}
               <div className="p-4 rounded-2xl bg-surface-soft border border-border space-y-3">
-                <p className="text-xs font-bold text-text-primary">
-                  {t('admin.settings.language')}
-                </p>
+                <p className="text-xs font-bold text-text-primary">{t('admin.settings.language')}</p>
                 <div className="space-y-1.5">
                   {availableLanguages.map((lang) => (
                     <button
@@ -235,7 +340,9 @@ export function AdminSettings() {
                           : 'border-border text-text-secondary hover:bg-surface'
                       }`}
                     >
-                      <span>{lang.name} ({lang.native})</span>
+                      <span>
+                        {lang.name} ({lang.native})
+                      </span>
                       {language === lang.code && <Check className="w-4 h-4 text-primary" />}
                     </button>
                   ))}
@@ -280,10 +387,8 @@ export function AdminSettings() {
                   </div>
                   <input
                     type="checkbox"
-                    checked={!!settings[item.key]}
-                    onChange={(e) =>
-                      setSettings({ ...settings, [item.key]: e.target.checked })
-                    }
+                    checked={Boolean(settings?.[item.key])}
+                    onChange={(e) => setSettings({ ...settings, [item.key]: e.target.checked })}
                     className="w-4 h-4 accent-primary rounded cursor-pointer"
                   />
                 </div>
@@ -306,10 +411,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="text"
-                  value={settings.adminName || 'Junayet Mollick'}
-                  onChange={(e) =>
-                    setSettings({ ...settings, adminName: e.target.value })
-                  }
+                  value={settings?.adminName || 'Junayet Mollick'}
+                  onChange={(e) => setSettings({ ...settings, adminName: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -320,32 +423,8 @@ export function AdminSettings() {
                 </label>
                 <input
                   type="email"
-                  value={settings.adminEmail || 'admin@alkabeerhmart.com'}
-                  onChange={(e) =>
-                    setSettings({ ...settings, adminEmail: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-text-secondary mb-1">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••••••"
-                  className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-text-secondary mb-1">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter new strong password"
+                  value={settings?.adminEmail || 'admin@alkabeerhmart.com'}
+                  onChange={(e) => setSettings({ ...settings, adminEmail: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-surface-soft border border-border text-xs text-text-primary focus:outline-hidden focus:border-primary"
                 />
               </div>
@@ -356,14 +435,17 @@ export function AdminSettings() {
         {/* Form Footer Save Button */}
         <div className="pt-4 border-t border-border flex items-center justify-end">
           <button
-            type="submit" disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-black shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
-            <span>{t('admin.settings.saveChanges')}</span>
+            <span>{saving ? 'Saving...' : t('admin.settings.saveChanges')}</span>
           </button>
         </div>
       </form>
+
+      {/* Password change form inside Account tab */}
       {activeTab === 'account' && <PasswordForm />}
     </div>
   );

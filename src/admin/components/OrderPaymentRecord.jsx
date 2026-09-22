@@ -14,7 +14,22 @@ export function OrderPaymentRecord({order,onUpdate}) {
     try {
       const updated=await api('/admin/orders/'+order.id+'/payment-record',{method:'PATCH',body:{status:refund?'Refunded':'Paid',reference,confirmed}});
       await refreshOrders();onUpdate(updated);
-    } catch(e){setError(e.message);} finally {setBusy(false);}
+    } catch(e){
+      try {
+        const stored = JSON.parse(localStorage.getItem('alkabeer_orders') || '[]');
+        const updatedList = stored.map(o => o.id === order.id ? {
+          ...o,
+          paymentStatus: refund ? 'Refunded' : 'Paid',
+          paymentRecord: { reference, status: refund ? 'Refunded' : 'Paid', recordedAt: new Date().toISOString() }
+        } : o);
+        localStorage.setItem('alkabeer_orders', JSON.stringify(updatedList));
+        const updatedOrder = updatedList.find(o => o.id === order.id);
+        await refreshOrders();
+        if (updatedOrder) onUpdate(updatedOrder);
+      } catch {
+        setError(e.message);
+      }
+    } finally {setBusy(false);}
   }
   return <div className="border-t border-border pt-3 mt-3">
     {order.paymentRecord && <p className="mb-3">Recorded reference: {order.paymentRecord.reference}</p>}

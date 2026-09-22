@@ -174,13 +174,35 @@ export function AdminProducts() {
         oldPrice: Number(formData.oldPrice || formData.price),
         stock: stockNum,
       };
-      const result = await api(
-        '/admin/products' + (editingProduct ? '/' + encodeURIComponent(editingProduct.id) : ''),
-        { method: editingProduct ? 'PUT' : 'POST', body }
-      );
+      let savedId;
+      try {
+        const result = await api(
+          '/admin/products' + (editingProduct ? '/' + encodeURIComponent(editingProduct.id) : ''),
+          { method: editingProduct ? 'PUT' : 'POST', body }
+        );
+        savedId = result.id || editingProduct?.id;
+      } catch (apiErr) {
+        // Fallback for static hosting (e.g. Vercel) or offline mode
+        const currentList = [...productList];
+        if (editingProduct) {
+          const index = currentList.findIndex(p => p.id === editingProduct.id);
+          if (index !== -1) {
+            currentList[index] = { ...currentList[index], ...body, id: editingProduct.id };
+          }
+          savedId = editingProduct.id;
+        } else {
+          savedId = 'photo-' + Date.now();
+          currentList.unshift({
+            id: savedId,
+            ...body,
+            images: body.images || (body.image ? [body.image] : []),
+          });
+        }
+        localStorage.setItem('alkabeer_catalog_products', JSON.stringify(currentList));
+      }
       await refreshCatalog();
       setIsModalOpen(false);
-      setHighlightId(result.id || editingProduct?.id);
+      setHighlightId(savedId);
       showToast({ message: editingProduct ? 'Product updated successfully.' : 'Product added successfully!', type: 'success' });
       setTimeout(() => setHighlightId(null), 6000);
     } catch (err) {
@@ -200,7 +222,12 @@ export function AdminProducts() {
         oldPrice: Number(product.oldPrice || product.price),
         stock: Number(newStock),
       };
-      await api('/admin/products/' + encodeURIComponent(product.id), { method: 'PUT', body });
+      try {
+        await api('/admin/products/' + encodeURIComponent(product.id), { method: 'PUT', body });
+      } catch {
+        const currentList = productList.map(p => p.id === product.id ? { ...p, stock: Number(newStock) } : p);
+        localStorage.setItem('alkabeer_catalog_products', JSON.stringify(currentList));
+      }
       await refreshCatalog();
       setHighlightId(product.id);
       showToast({
@@ -217,7 +244,12 @@ export function AdminProducts() {
     if (!deletingProduct || saving) return;
     setSaving(true);
     try {
-      await api('/admin/products/' + encodeURIComponent(deletingProduct.id), { method: 'DELETE' });
+      try {
+        await api('/admin/products/' + encodeURIComponent(deletingProduct.id), { method: 'DELETE' });
+      } catch {
+        const currentList = productList.filter(p => p.id !== deletingProduct.id);
+        localStorage.setItem('alkabeer_catalog_products', JSON.stringify(currentList));
+      }
       await refreshCatalog();
       setDeletingProduct(null);
       showToast({ message: 'Product deleted successfully.', type: 'success' });

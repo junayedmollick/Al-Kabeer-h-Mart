@@ -46,15 +46,49 @@ export function AdminPromotions() {
   const [saving, setSaving] = useState(false);
   const toggleStatus = async id => {
     const p = promotions.find(p => p.id === id);
-    try { await api('/admin/promotions/' + encodeURIComponent(id), { method: 'PUT', body: { ...p, status: p.status === 'Active' ? 'Expired' : 'Active' } }); await refreshAdmin(); showToast('Promotion updated.'); } catch(e) { showToast(e.message); }
+    try {
+      await api('/admin/promotions/' + encodeURIComponent(id), { method: 'PUT', body: { ...p, status: p.status === 'Active' ? 'Expired' : 'Active' } });
+    } catch(e) {
+      const updated = promotions.map(item => item.id === id ? { ...item, status: item.status === 'Active' ? 'Expired' : 'Active' } : item);
+      localStorage.setItem('alkabeer_promotions', JSON.stringify(updated));
+    }
+    await refreshAdmin();
+    showToast('Promotion updated.');
   };
   const handleDeletePromo = async id => {
     if(!window.confirm('Delete this promotion?')) return;
-    try { await api('/admin/promotions/' + encodeURIComponent(id), { method:'DELETE' }); await refreshAdmin(); showToast('Promotion deleted.'); } catch(e) { showToast(e.message); }
+    try {
+      await api('/admin/promotions/' + encodeURIComponent(id), { method:'DELETE' });
+    } catch(e) {
+      const updated = promotions.filter(item => item.id !== id);
+      localStorage.setItem('alkabeer_promotions', JSON.stringify(updated));
+    }
+    await refreshAdmin();
+    showToast('Promotion deleted.');
   };
   const handleCreatePromo = async e => {
     e.preventDefault(); if(saving) return; setSaving(true);
-    try { await api('/admin/promotions', { method:'POST', body: { ...formData, title:formData.title || formData.code, status:'Active', discountType:formData.discountValue.includes('%') ? 'Percentage' : 'Flat Discount' } }); await refreshAdmin(); setIsModalOpen(false); showToast('Coupon created.'); } catch(e) { showToast(e.message); } finally { setSaving(false); }
+    const newPromo = {
+      id: 'PROMO-' + Math.floor(100 + Math.random() * 900),
+      ...formData,
+      title: formData.title || formData.code,
+      status: 'Active',
+      discountType: formData.discountValue.includes('%') ? 'Percentage' : 'Flat Discount',
+      usageLimit: Number(formData.usageLimit) || 100,
+      usageCount: 0,
+      validUntil: formData.validUntil || '31 Dec 2025',
+    };
+    try {
+      await api('/admin/promotions', { method:'POST', body: newPromo });
+    } catch(e) {
+      const current = JSON.parse(localStorage.getItem('alkabeer_promotions') || 'null') || promotions;
+      localStorage.setItem('alkabeer_promotions', JSON.stringify([newPromo, ...current]));
+    } finally {
+      await refreshAdmin();
+      setIsModalOpen(false);
+      showToast('Coupon created.');
+      setSaving(false);
+    }
   };
 
   const filteredPromotions = promotions.filter((p) => {

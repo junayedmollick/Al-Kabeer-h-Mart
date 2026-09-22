@@ -16,12 +16,29 @@ const initialSettings = {
   paymentTestMode: false,
 };
 
-const initialCatalog = {
-  categories: defaultCategories,
-  products: defaultProducts,
-  settings: initialSettings,
-  storeSettings: initialSettings,
+const getInitialCatalog = () => {
+  try {
+    const localProds = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_catalog_products') || 'null') : null;
+    const localCats = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_catalog_categories') || 'null') : null;
+    const localSettings = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_settings') || 'null') : null;
+
+    return {
+      categories: (localCats || defaultCategories).filter(c => !c.archived && c.slug !== 'for-you'),
+      products: (localProds || defaultProducts).filter(p => !p.archived && String(p.id).startsWith('photo-')),
+      settings: { ...initialSettings, ...(localSettings || {}) },
+      storeSettings: { ...initialSettings, ...(localSettings || {}) },
+    };
+  } catch {
+    return {
+      categories: defaultCategories.filter(c => !c.archived && c.slug !== 'for-you'),
+      products: defaultProducts.filter(p => !p.archived && String(p.id).startsWith('photo-')),
+      settings: initialSettings,
+      storeSettings: initialSettings,
+    };
+  }
 };
+
+const initialCatalog = getInitialCatalog();
 
 const Context = createContext();
 
@@ -80,7 +97,12 @@ export function CatalogProvider({ children }) {
               ...(settingsRes.data?.store_details || {}),
             };
 
-            setData({ categories, products, settings: storeSettings, storeSettings });
+            setData({
+              categories: categories.filter(c => !c.archived && c.slug !== 'for-you'),
+              products: products.filter(p => !p.archived && String(p.id).startsWith('photo-')),
+              settings: storeSettings,
+              storeSettings
+            });
             setError('');
             return;
           }
@@ -99,6 +121,8 @@ export function CatalogProvider({ children }) {
           };
           setData({
             ...catalogData,
+            categories: (catalogData.categories || []).filter(c => !c.archived && c.slug !== 'for-you'),
+            products: (catalogData.products || []).filter(p => !p.archived && String(p.id).startsWith('photo-')),
             settings,
             storeSettings: settings,
           });
@@ -106,7 +130,24 @@ export function CatalogProvider({ children }) {
           return;
         }
       } catch {
-        // Fall back gracefully to built-in catalog data
+        // Fall back gracefully to localStorage overrides or built-in catalog data
+        try {
+          const localProds = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_catalog_products') || 'null') : null;
+          const localCats = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_catalog_categories') || 'null') : null;
+          const localSettings = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('alkabeer_settings') || 'null') : null;
+
+          const activeCategories = (localCats || defaultCategories).filter(c => !c.archived && c.slug !== 'for-you');
+          const activeProducts = (localProds || defaultProducts).filter(p => !p.archived && String(p.id).startsWith('photo-'));
+          const effectiveSettings = { ...initialSettings, ...(localSettings || {}) };
+
+          setData({
+            categories: activeCategories,
+            products: activeProducts,
+            settings: effectiveSettings,
+            storeSettings: effectiveSettings,
+          });
+          setError('');
+        } catch {}
       }
     } catch (e) {
       console.warn('Catalog refresh notice:', e.message);

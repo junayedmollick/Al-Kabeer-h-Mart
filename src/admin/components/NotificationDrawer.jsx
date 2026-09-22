@@ -20,8 +20,19 @@ import { useCatalog } from '../../context/CatalogContext';
 export function NotificationDrawer({ isOpen, onClose, onUnreadCountChange }) {
   const { orders } = useOrders(), { products } = useCatalog();
   const { notificationPreferences } = useAdminData();
-  const [readIds, setReadIds] = useState(notificationPreferences.read), [hiddenIds, setHiddenIds] = useState(notificationPreferences.hidden);
-  const savePreferences = async (read, hidden) => { try { const saved = await api('/admin/notifications/preferences', {method:'PUT',body:{read:[...new Set(read)].slice(-500),hidden:[...new Set(hidden)].slice(-500)}}); setReadIds(saved.read); setHiddenIds(saved.hidden); } catch(e) { alert(e.message); } };
+  const [readIds, setReadIds] = useState(notificationPreferences?.read || []), [hiddenIds, setHiddenIds] = useState(notificationPreferences?.hidden || []);
+  const savePreferences = async (read, hidden) => {
+    try {
+      const saved = await api('/admin/notifications/preferences', {method:'PUT',body:{read:[...new Set(read)].slice(-500),hidden:[...new Set(hidden)].slice(-500)}});
+      setReadIds(saved.read);
+      setHiddenIds(saved.hidden);
+    } catch(e) {
+      const prefs = { read: [...new Set(read)].slice(-500), hidden: [...new Set(hidden)].slice(-500) };
+      localStorage.setItem('alkabeer_notification_prefs', JSON.stringify(prefs));
+      setReadIds(prefs.read);
+      setHiddenIds(prefs.hidden);
+    }
+  };
   const notifications = [...orders.filter(o => o.statusType === 'active').map(o => ({id:o.id,title:'Order ' + o.id,message:o.customerName + ' · ₹' + o.total + ' · ' + o.status,time:o.date,type:'order'})), ...products.filter(p => p.stock < 10).map(p => ({id:'stock-' + p.id,title:'Low stock',message:p.name + ': ' + p.stock + ' remaining',time:'Current inventory',type:'stock'}))].filter(n => !hiddenIds.includes(n.id)).map(n => ({...n,read:readIds.includes(n.id)}));
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'unread'
   const drawerRef = useRef(null);
